@@ -21,10 +21,7 @@ export default function Portal() {
       </div>
 
       <div className="portal-hero">
-        <h1>安全准入，精准到每一次到离场。</h1>
-        <p className="lede">
-          Merck LS 色系，苹果级留白与层级。培训、资质、放行、收口——三端各司其职。
-        </p>
+        <h1>承运商安全准入管理系统</h1>
       </div>
 
       <div className="portal-cards">

@@ -7,7 +7,13 @@
 - **到离场状态机**：预约 → 报到 → 准入 → 安检 → 在场 → 离场收口
 - **设备对接预留**：道闸、LPR、摄像抓拍、地磅（模拟适配器可切换）
 
-## 快速启动
+## 在线演示（GitHub Pages）
+
+**https://jushuolot.github.io/carrier-gate-safety/**
+
+> Pages 版为浏览器内 mock（无后端），账号与本地相同。若网页打不开，多为网络访问 GitHub 问题，可改用本地启动。
+
+## 快速启动（本地正式 API）
 
 ```bash
 cd /Users/chenli/Downloads/cursor/carrier-gate-safety

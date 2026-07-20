@@ -1,17 +1,22 @@
 import { Link } from "react-router-dom";
 import { getUser } from "../api";
+import { isPagesDemo } from "../mockApi";
 
 export default function Portal() {
   const user = getUser();
+  const pagesDemo = isPagesDemo();
   return (
     <div className="portal">
       <div className="portal-hero">
         <p className="muted" style={{ marginBottom: 8 }}>
-          Carrier Gate Safety
+          Carrier Gate Safety{pagesDemo ? " · GitHub Pages 演示" : ""}
         </p>
         <h1>承运商到离场 · 安全准入</h1>
         <p className="muted" style={{ maxWidth: 560, lineHeight: 1.6 }}>
           培训过关 → 资质有效 → 安检放行 → 离场收口。道闸 / 车牌识别 / 地磅已预留设备适配层。
+          {pagesDemo
+            ? " 当前为浏览器内演示数据，无需后端。"
+            : ""}
         </p>
       </div>
 

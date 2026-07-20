@@ -1,0 +1,573 @@
+/**
+ * GitHub Pages 演示：浏览器内 mock API（无后端）
+ * 数据落在 localStorage，刷新可续。
+ */
+
+const STORE_KEY = "cgs-pages-demo-v1";
+
+function addDays(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function now() {
+  return new Date().toISOString();
+}
+
+function nid() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+function seed() {
+  const courseId = "course-1";
+  const qids = ["q1", "q2", "q3", "q4", "q5"];
+  return {
+    users: [
+      { id: "u-admin", phone: "13800000000", name: "系统管理员", password: "admin123", role: "admin", carrier_id: null, driver_id: null },
+      { id: "u-ehs", phone: "13800000001", name: "EHS安全员", password: "ehs123", role: "ehs", carrier_id: null, driver_id: null },
+      { id: "u-gate", phone: "13800000002", name: "门岗值班", password: "gate123", role: "gate", carrier_id: null, driver_id: null },
+      { id: "u-carrier", phone: "13800000003", name: "承运商管理员", password: "carrier123", role: "carrier_admin", carrier_id: "carrier-1", driver_id: null },
+      { id: "u-d1", phone: "13900000001", name: "新司机·王强", password: "driver123", role: "driver", carrier_id: "carrier-1", driver_id: "driver-new" },
+      { id: "u-d2", phone: "13900000002", name: "熟手·李明", password: "driver123", role: "driver", carrier_id: "carrier-1", driver_id: "driver-ok" },
+    ],
+    carriers: [{ id: "carrier-1", name: "示例物流有限公司", credit_code: "91310000MA1XXXXX1X", status: "active", risk_score: 0 }],
+    drivers: [
+      { id: "driver-new", carrier_id: "carrier-1", name: "新司机·王强", phone: "13900000001", status: "active" },
+      { id: "driver-ok", carrier_id: "carrier-1", name: "熟手·李明", phone: "13900000002", status: "active" },
+    ],
+    vehicles: [
+      { id: "veh-1", carrier_id: "carrier-1", plate_no: "沪A12345", vehicle_type: "重型厢式货车", status: "active" },
+      { id: "veh-2", carrier_id: "carrier-1", plate_no: "沪B67890", vehicle_type: "重型厢式货车", status: "active" },
+    ],
+    sites: [{ id: "site-1", name: "华东一号仓", address: "上海市浦东新区示例路 88 号" }],
+    course: {
+      id: courseId,
+      site_id: "site-1",
+      title: "厂区安全准入培训（2026）",
+      min_watch_seconds: 30,
+      pass_score: 80,
+      valid_days: 365,
+    },
+    questions: [
+      { id: qids[0], stem: "进入厂区必须佩戴哪些防护用品？", options: ["仅安全帽", "安全帽与反光背心", "随意着装", "仅手套"], answer_index: 1 },
+      { id: qids[1], stem: "车辆限速一般为多少？", options: ["不限速", "≤20km/h", "≤60km/h", "≤80km/h"], answer_index: 1 },
+      { id: qids[2], stem: "发现泄漏或火情应首先？", options: ["继续作业", "离开并上报", "围观拍照", "自行处理化学品"], answer_index: 1 },
+      { id: qids[3], stem: "装卸作业时发动机应？", options: ["保持怠速", "熄火并拉驻车", "加大油门", "无人看管"], answer_index: 1 },
+      { id: qids[4], stem: "证件过期时系统策略是？", options: ["口头说明即可", "硬拦截不得入场", "交押金放行", "门岗随意决定"], answer_index: 1 },
+    ],
+    training: [
+      {
+        id: "tr-ok",
+        driver_id: "driver-ok",
+        course_id: courseId,
+        site_id: "site-1",
+        watched_seconds: 120,
+        video_completed: 1,
+        quiz_score: 100,
+        quiz_passed: 1,
+        valid_until: addDays(300),
+        completed_at: now(),
+        created_at: now(),
+      },
+    ],
+    documents: [
+      doc("driver", "driver-ok", "driver_license", 200),
+      doc("driver", "driver-ok", "qualification", 200),
+      doc("vehicle", "veh-1", "vehicle_license", 180),
+      doc("vehicle", "veh-1", "insurance", 180),
+      doc("vehicle", "veh-2", "vehicle_license", 180),
+      doc("vehicle", "veh-2", "insurance", 180),
+      doc("carrier", "carrier-1", "transport_permit", 400),
+      doc("driver", "driver-new", "driver_license", 5),
+    ],
+    visits: [],
+    audit: [],
+    deviceEvents: [],
+    devices: [
+      { id: "barrier-in-1", type: "barrier", name: "一号门入口道闸（模拟）", online: true },
+      { id: "barrier-out-1", type: "barrier", name: "一号门出口道闸（模拟）", online: true },
+      { id: "lpr-gate-1", type: "lpr", name: "入口车牌识别（模拟）", online: true },
+      { id: "cam-gate-1", type: "camera", name: "门岗抓拍相机（模拟）", online: true },
+      { id: "scale-1", type: "weighbridge", name: "地磅 1#（模拟）", online: true },
+      { id: "face-1", type: "face", name: "人脸核验终端（模拟·可选）", online: true },
+      { id: "hik-barrier-stub", type: "barrier", name: "海康道闸（待对接）", online: false },
+      { id: "dahua-lpr-stub", type: "lpr", name: "大华车牌识别（待对接）", online: false },
+    ],
+  };
+}
+
+function doc(subjectType, subjectId, docType, days) {
+  return {
+    id: nid(),
+    subject_type: subjectType,
+    subject_id: subjectId,
+    doc_type: docType,
+    expire_at: addDays(days),
+    status: "valid",
+    confidence: 0.95,
+    ocr_json: { expireAt: addDays(days), provider: "pages-mock" },
+    created_at: now(),
+    updated_at: now(),
+  };
+}
+
+const LABELS = {
+  driver_license: "驾驶证",
+  vehicle_license: "行驶证",
+  qualification: "从业资格证",
+  transport_permit: "道路运输证",
+  insurance: "保险单",
+};
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  const s = seed();
+  save(s);
+  return s;
+}
+
+function save(s) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(s));
+}
+
+function publicUser(u) {
+  const { password, ...rest } = u;
+  return rest;
+}
+
+function enrichVisit(s, v) {
+  const d = s.drivers.find((x) => x.id === v.driver_id);
+  const vh = s.vehicles.find((x) => x.id === v.vehicle_id);
+  const c = s.carriers.find((x) => x.id === v.carrier_id);
+  return {
+    ...v,
+    driver_name: d?.name,
+    driver_phone: d?.phone,
+    plate_no: vh?.plate_no,
+    carrier_name: c?.name,
+    block_reasons: v.block_reasons || null,
+    inspection: v.inspection_json || null,
+    departure: v.departure_json || null,
+    exception: v.exception_note || null,
+  };
+}
+
+function evaluate(s, { driverId, vehicleId, carrierId }) {
+  const reasons = [];
+  const today = addDays(0);
+  const carrier = s.carriers.find((c) => c.id === carrierId);
+  const driver = s.drivers.find((d) => d.id === driverId);
+  const vehicle = s.vehicles.find((v) => v.id === vehicleId);
+  if (!carrier || carrier.status !== "active") reasons.push({ code: "CARRIER_BLOCKED", message: "承运商已冻结或不可用" });
+  if (!driver || driver.status !== "active") reasons.push({ code: "DRIVER_BLOCKED", message: "司机状态不可用" });
+  if (!vehicle || vehicle.status !== "active") reasons.push({ code: "VEHICLE_BLOCKED", message: "车辆状态不可用" });
+
+  const training = [...s.training]
+    .filter((t) => t.driver_id === driverId && t.course_id === s.course.id && t.quiz_passed)
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+  let trainingOk = false;
+  if (!training) reasons.push({ code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过" });
+  else if (!training.valid_until || training.valid_until < today)
+    reasons.push({ code: "TRAINING_EXPIRED", message: `培训已过期（有效至 ${training.valid_until || "-"}），须复训` });
+  else trainingOk = true;
+
+  const need = {
+    driver: ["driver_license", "qualification"],
+    vehicle: ["vehicle_license", "insurance"],
+    carrier: ["transport_permit"],
+  };
+  const check = (type, id, list) => {
+    for (const t of list) {
+      const d = s.documents
+        .filter((x) => x.subject_type === type && x.subject_id === id && x.doc_type === t && x.status === "valid")
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+      if (!d) reasons.push({ code: "DOC_MISSING", message: `${type}缺少证件: ${t}`, docType: t });
+      else if (d.expire_at && d.expire_at < today)
+        reasons.push({ code: "DOC_EXPIRED", message: `${type}证件过期: ${t}`, docType: t });
+    }
+  };
+  check("driver", driverId, need.driver);
+  check("vehicle", vehicleId, need.vehicle);
+  check("carrier", carrierId, need.carrier);
+
+  const docsOk = !reasons.some((r) => r.code === "DOC_MISSING" || r.code === "DOC_EXPIRED");
+  return {
+    allowed: reasons.length === 0,
+    reasons,
+    lights: {
+      training: trainingOk,
+      documents: docsOk,
+      subject: !reasons.some((r) => ["CARRIER_BLOCKED", "DRIVER_BLOCKED", "VEHICLE_BLOCKED"].includes(r.code)),
+    },
+    training: training || null,
+    course: s.course,
+  };
+}
+
+function audit(s, user, action, entityType, entityId, detail) {
+  s.audit.unshift({
+    id: nid(),
+    actor_id: user?.id,
+    actor_name: user?.name || "system",
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    detail,
+    created_at: now(),
+  });
+}
+
+function deviceEvent(s, type, id, eventType, payload) {
+  s.deviceEvents.unshift({
+    id: nid(),
+    device_type: type,
+    device_id: id,
+    event_type: eventType,
+    payload,
+    created_at: now(),
+  });
+}
+
+function parse(path) {
+  const [p, qs] = path.split("?");
+  const q = Object.fromEntries(new URLSearchParams(qs || ""));
+  return { path: p, q };
+}
+
+function getUserFromAuth(s, headers) {
+  const token = (headers.Authorization || "").replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  return s.users.find((u) => u.id === token) || null;
+}
+
+export async function mockApi(path, options = {}) {
+  const s = load();
+  const method = (options.method || "GET").toUpperCase();
+  const body = options.body || {};
+  const headers = options.headers || {};
+  const user = getUserFromAuth(s, headers);
+  const { path: p, q } = parse(path);
+
+  const ok = (data) => data;
+  const fail = (msg, code = 400) => {
+    const e = new Error(msg);
+    e.status = code;
+    throw e;
+  };
+
+  if (p === "/health") return ok({ ok: true, service: "carrier-gate-safety-pages", demo: true, ts: now() });
+
+  if (p === "/auth/login" && method === "POST") {
+    const u = s.users.find((x) => x.phone === body.phone && x.password === body.password);
+    if (!u) fail("手机号或密码错误", 401);
+    const safe = publicUser(u);
+    audit(s, safe, "login", "user", safe.id, {});
+    save(s);
+    return ok({ token: safe.id, user: safe });
+  }
+
+  if (p === "/me") {
+    if (!user) fail("未登录", 401);
+    return ok({ user: publicUser(user) });
+  }
+
+  if (!user && p !== "/health") fail("未登录", 401);
+
+  if (p === "/sites") return ok({ items: s.sites });
+  if (p === "/meta/doc-types") return ok({ labels: LABELS });
+
+  if (p === "/dashboard") {
+    const today = addDays(0);
+    return ok({
+      onsite: s.visits.filter((v) => v.status === "onsite").length,
+      todayAppointed: s.visits.filter((v) => (v.created_at || "").startsWith(today)).length,
+      blocked: s.visits.filter((v) => ["access_pending", "rejected"].includes(v.status)).length,
+      expiring30d: s.documents.filter((d) => d.expire_at && d.expire_at <= addDays(30)).length,
+      expired: s.documents.filter((d) => d.expire_at && d.expire_at < addDays(0)).length,
+    });
+  }
+
+  if (p === "/carriers") return ok({ items: s.carriers });
+  if (p === "/drivers") {
+    const items = q.carrierId ? s.drivers.filter((d) => d.carrier_id === q.carrierId) : s.drivers;
+    return ok({ items });
+  }
+  if (p === "/vehicles") {
+    const items = q.carrierId ? s.vehicles.filter((d) => d.carrier_id === q.carrierId) : s.vehicles;
+    return ok({ items });
+  }
+
+  if (p === "/documents") {
+    let items = s.documents;
+    if (q.subjectType && q.subjectId)
+      items = items.filter((d) => d.subject_type === q.subjectType && d.subject_id === q.subjectId);
+    return ok({
+      items: items.map((d) => ({ ...d, ocr: d.ocr_json, label: LABELS[d.doc_type] || d.doc_type })),
+    });
+  }
+
+  if (p === "/documents/expiring") {
+    const days = Number(q.days || 30);
+    const limit = addDays(days);
+    const items = s.documents
+      .filter((d) => d.expire_at && d.expire_at <= limit)
+      .sort((a, b) => (a.expire_at > b.expire_at ? 1 : -1))
+      .map((d) => ({
+        ...d,
+        ocr: d.ocr_json,
+        label: LABELS[d.doc_type] || d.doc_type,
+        expired: d.expire_at < addDays(0),
+      }));
+    return ok({ items });
+  }
+
+  if (p === "/documents/ocr" && method === "POST") {
+    const expireAt = addDays(Number(body.forceExpireDays ?? 200));
+    const id = nid();
+    const row = {
+      id,
+      subject_type: body.subjectType,
+      subject_id: body.subjectId,
+      doc_type: body.docType,
+      expire_at: expireAt,
+      status: "valid",
+      confidence: 0.93,
+      ocr_json: {
+        ok: true,
+        confidence: 0.93,
+        expireAt,
+        fields: { ...(body.hint || {}), expireAt },
+        provider: "pages-mock-ocr",
+      },
+      created_at: now(),
+      updated_at: now(),
+    };
+    s.documents.unshift(row);
+    audit(s, user, "document.ocr", "document", id, { docType: body.docType, expireAt });
+    save(s);
+    return ok({ id, status: "valid", ocr: row.ocr_json, label: LABELS[body.docType] || body.docType });
+  }
+
+  if (p === "/training/course") {
+    return ok({
+      course: s.course,
+      questions: s.questions.map(({ id, stem, options }) => ({ id, stem, options })),
+    });
+  }
+
+  if (p === "/training/status") {
+    const driverId = q.driverId || user.driver_id;
+    const record = [...s.training]
+      .filter((t) => t.driver_id === driverId && t.course_id === s.course.id)
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+    const passed = !!(record && record.quiz_passed && record.valid_until >= addDays(0));
+    return ok({ passed, record: record || null, course: s.course });
+  }
+
+  if (p === "/training/progress" && method === "POST") {
+    const driverId = body.driverId || user.driver_id;
+    let record = s.training.find((t) => t.driver_id === driverId && t.course_id === s.course.id && !t.quiz_passed);
+    const watched = Number(body.watchedSeconds || 0);
+    const completed = watched >= s.course.min_watch_seconds ? 1 : 0;
+    if (!record) {
+      record = {
+        id: nid(),
+        driver_id: driverId,
+        course_id: s.course.id,
+        site_id: "site-1",
+        watched_seconds: watched,
+        video_completed: completed,
+        quiz_score: null,
+        quiz_passed: 0,
+        valid_until: null,
+        completed_at: null,
+        created_at: now(),
+      };
+      s.training.unshift(record);
+    } else {
+      record.watched_seconds = Math.max(record.watched_seconds, watched);
+      record.video_completed = completed;
+    }
+    save(s);
+    return ok({ record, minWatchSeconds: s.course.min_watch_seconds });
+  }
+
+  if (p === "/training/quiz" && method === "POST") {
+    const driverId = body.driverId || user.driver_id;
+    const record = s.training.find((t) => t.driver_id === driverId && t.course_id === s.course.id);
+    if (!record || !record.video_completed) fail("请先完成安全培训视频观看");
+    let correct = 0;
+    for (const qn of s.questions) {
+      if (Number(body.answers?.[qn.id]) === qn.answer_index) correct += 1;
+    }
+    const score = Math.round((correct / s.questions.length) * 100);
+    const passed = score >= s.course.pass_score;
+    record.quiz_score = score;
+    record.quiz_passed = passed ? 1 : 0;
+    record.valid_until = passed ? addDays(s.course.valid_days) : null;
+    record.completed_at = passed ? now() : null;
+    audit(s, user, "training.quiz", "training_record", record.id, { score, passed });
+    save(s);
+    return ok({ score, passed, passScore: s.course.pass_score, validUntil: record.valid_until, detail: [] });
+  }
+
+  if (p === "/access/evaluate" && method === "POST") {
+    return ok(evaluate(s, body));
+  }
+
+  if (p === "/visits" && method === "GET") {
+    let items = s.visits.map((v) => enrichVisit(s, v));
+    if (q.status) items = items.filter((v) => v.status === q.status);
+    items.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+    return ok({ items });
+  }
+
+  if (p === "/visits" && method === "POST") {
+    const id = nid();
+    const v = {
+      id,
+      site_id: body.siteId || "site-1",
+      carrier_id: body.carrierId,
+      driver_id: body.driverId,
+      vehicle_id: body.vehicleId,
+      appointment_at: body.appointmentAt || now(),
+      status: "appointed",
+      block_reasons: null,
+      created_at: now(),
+      updated_at: now(),
+    };
+    s.visits.unshift(v);
+    audit(s, user, "visit.create", "visit", id, {});
+    save(s);
+    return ok({ visit: enrichVisit(s, v) });
+  }
+
+  const visitMatch = p.match(/^\/visits\/([^/]+)(?:\/(checkin|inspect|depart|exception))?$/);
+  if (visitMatch) {
+    const visit = s.visits.find((v) => v.id === visitMatch[1]);
+    if (!visit) fail("到访单不存在", 404);
+    const action = visitMatch[2];
+
+    if (!action && method === "GET") {
+      return ok({ visit: enrichVisit(s, visit), access: evaluate(s, { driverId: visit.driver_id, vehicleId: visit.vehicle_id, carrierId: visit.carrier_id }) });
+    }
+
+    if (action === "checkin" && method === "POST") {
+      const access = evaluate(s, {
+        driverId: visit.driver_id,
+        vehicleId: visit.vehicle_id,
+        carrierId: visit.carrier_id,
+      });
+      visit.checkin_at = now();
+      visit.updated_at = now();
+      if (!access.allowed) {
+        visit.status = "access_pending";
+        visit.block_reasons = access.reasons;
+        save(s);
+        return ok({ ok: false, visit: enrichVisit(s, visit), access, message: "准入未通过，请先完成培训/证件" });
+      }
+      visit.status = "inspecting";
+      visit.admitted_at = now();
+      visit.block_reasons = null;
+      save(s);
+      return ok({ ok: true, visit: enrichVisit(s, visit), access });
+    }
+
+    if (action === "inspect" && method === "POST") {
+      const checklist = body.checklist || {};
+      const pass = body.pass !== false && Object.values(checklist).every(Boolean);
+      visit.updated_at = now();
+      visit.inspection_json = { checklist, pass, at: now() };
+      if (!pass) {
+        visit.status = "rejected";
+        save(s);
+        return ok({ ok: false, visit: enrichVisit(s, visit) });
+      }
+      visit.status = "onsite";
+      visit.onsite_at = now();
+      const deviceResult = { ok: true, gate: "open", txnId: nid(), at: now() };
+      deviceEvent(s, "barrier", "barrier-in-1", "opened", deviceResult);
+      audit(s, user, "visit.admit", "visit", visit.id, { deviceResult });
+      save(s);
+      return ok({ ok: true, visit: enrichVisit(s, visit), deviceResult });
+    }
+
+    if (action === "depart" && method === "POST") {
+      const steps = {
+        loadDone: !!body.loadDone,
+        inventoryDone: !!body.inventoryDone,
+        safetySigned: !!body.safetySigned,
+        gateCheckout: !!body.gateCheckout,
+      };
+      const missing = Object.entries(steps).filter(([, v]) => !v).map(([k]) => k);
+      visit.updated_at = now();
+      if (missing.length) {
+        visit.status = "departing";
+        visit.departure_json = { steps, missing, at: now() };
+        save(s);
+        return ok({ ok: false, missing, visit: enrichVisit(s, visit), message: "离场收口未完成" });
+      }
+      const weight = { ok: true, weightKg: 15000 + Math.floor(Math.random() * 3000), at: now() };
+      visit.status = "completed";
+      visit.checkout_at = now();
+      visit.departure_json = { steps, weight, at: now() };
+      const deviceResult = { ok: true, gate: "open", direction: "out", txnId: nid() };
+      deviceEvent(s, "barrier", "barrier-out-1", "opened", deviceResult);
+      save(s);
+      return ok({ ok: true, visit: enrichVisit(s, visit), deviceResult, weight });
+    }
+
+    if (action === "exception" && method === "POST") {
+      visit.status = "onsite";
+      visit.onsite_at = now();
+      visit.updated_at = now();
+      visit.exception_note = { reason: body.reason, approverNote: body.approverNote, by: user.name, at: now() };
+      const deviceResult = { ok: true, gate: "open", txnId: nid(), exception: true };
+      deviceEvent(s, "barrier", "barrier-in-1", "opened", deviceResult);
+      audit(s, user, "visit.exception", "visit", visit.id, visit.exception_note);
+      save(s);
+      return ok({ ok: true, visit: enrichVisit(s, visit), deviceResult });
+    }
+  }
+
+  if (p === "/devices") {
+    return ok({
+      mode: "pages-mock",
+      items: s.devices,
+      note: "GitHub Pages 演示为浏览器内模拟设备",
+    });
+  }
+
+  if (p.startsWith("/devices/") && p.endsWith("/execute") && method === "POST") {
+    const id = p.split("/")[2];
+    const result = { ok: true, cmd: body.cmd, deviceId: id, at: now(), txnId: nid() };
+    deviceEvent(s, "device", id, body.cmd || "exec", result);
+    save(s);
+    return ok({ result });
+  }
+
+  if (p === "/devices/lpr/simulate" && method === "POST") {
+    const captured = { ok: true, plateNo: body.plateNo || "沪A12345", confidence: 0.96, at: now() };
+    const vehicle = s.vehicles.find((v) => v.plate_no === captured.plateNo) || null;
+    deviceEvent(s, "lpr", "lpr-gate-1", "plate_captured", captured);
+    save(s);
+    return ok({ captured, vehicle });
+  }
+
+  if (p === "/audit") return ok({ items: s.audit.slice(0, 200) });
+  if (p === "/device-events") return ok({ items: s.deviceEvents.slice(0, 100) });
+
+  fail(`未实现的演示接口: ${method} ${p}`, 404);
+}
+
+export function isPagesDemo() {
+  if (import.meta.env.VITE_DEMO_MOCK === "true") return true;
+  if (typeof location !== "undefined" && /\.github\.io$/i.test(location.hostname)) return true;
+  return false;
+}

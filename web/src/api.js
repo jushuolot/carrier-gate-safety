@@ -1,3 +1,5 @@
+import { isPagesDemo, mockApi } from "./mockApi";
+
 const TOKEN_KEY = "cgs_token";
 const USER_KEY = "cgs_user";
 
@@ -24,6 +26,16 @@ export function clearSession() {
 }
 
 export async function api(path, options = {}) {
+  if (isPagesDemo()) {
+    return mockApi(path, {
+      method: options.method || "GET",
+      body: options.body,
+      headers: {
+        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      },
+    });
+  }
+
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),

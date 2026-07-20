@@ -1,0 +1,21 @@
+{
+  "name": "carrier-gate-safety",
+  "version": "1.0.0",
+  "private": true,
+  "description": "承运商到离场 · 安全准入管理系统",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "seed": "npm run seed -w server",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

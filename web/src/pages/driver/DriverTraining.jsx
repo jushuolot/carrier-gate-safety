@@ -1,0 +1,123 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api, getUser } from "../../api";
+
+export default function DriverTraining() {
+  const user = getUser();
+  const [course, setCourse] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [watched, setWatched] = useState(0);
+  const [videoDone, setVideoDone] = useState(false);
+  const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const data = await api("/training/course?siteId=site-1");
+      setCourse(data.course);
+      setQuestions(data.questions);
+      const st = await api(`/training/status?driverId=${user.driver_id}`);
+      if (st.record) {
+        setWatched(st.record.watched_seconds || 0);
+        setVideoDone(!!st.record.video_completed);
+        if (st.passed) {
+          setResult({
+            passed: true,
+            score: st.record.quiz_score,
+            validUntil: st.record.valid_until,
+          });
+        }
+      }
+    })().catch((e) => setMsg(e.message));
+  }, [user]);
+
+  async function tickWatch() {
+    if (!course || videoDone) return;
+    const next = Math.min(watched + 5, course.min_watch_seconds);
+    setWatched(next);
+    const r = await api("/training/progress", {
+      method: "POST",
+      body: { watchedSeconds: next, driverId: user.driver_id },
+    });
+    if (r.record.video_completed) setVideoDone(true);
+  }
+
+  async function submitQuiz() {
+    try {
+      const r = await api("/training/quiz", {
+        method: "POST",
+        body: { answers, driverId: user.driver_id },
+      });
+      setResult(r);
+      setMsg(r.passed ? "培训通过，可继续上传证件/报到" : "未及格，请复习后重考");
+    } catch (e) {
+      setMsg(e.message);
+    }
+  }
+
+  if (!course) return <div className="h5">加载课程…</div>;
+
+  const pct = Math.min(100, Math.round((watched / course.min_watch_seconds) * 100));
+
+  return (
+    <div className="h5">
+      <Link to="/driver" className="muted">
+        ← 返回
+      </Link>
+      <h2>{course.title}</h2>
+      <p className="muted">
+        最短观看 {course.min_watch_seconds}s · 及格线 {course.pass_score} 分（防快进：需点击累计观看）
+      </p>
+
+      <div className="card">
+        <div className="muted">视频进度（模拟播放器）</div>
+        <div className="progress" style={{ margin: "10px 0" }}>
+          <i style={{ width: `${pct}%` }} />
+        </div>
+        <div className="row">
+          <button className="btn primary" type="button" onClick={tickWatch} disabled={videoDone}>
+            {videoDone ? "已看完" : `继续观看 +5s（${watched}/${course.min_watch_seconds}）`}
+          </button>
+          {videoDone && <span className="pill ok">可答题</span>}
+        </div>
+      </div>
+
+      {videoDone && !result?.passed && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <strong>准入答题</strong>
+          {questions.map((q) => (
+            <div key={q.id} style={{ marginTop: 14 }}>
+              <div>{q.stem}</div>
+              {q.options.map((opt, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className={`btn quiz-opt ${answers[q.id] === idx ? "picked" : ""}`}
+                  onClick={() => setAnswers((a) => ({ ...a, [q.id]: idx }))}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          ))}
+          <button className="btn primary" type="button" onClick={submitQuiz}>
+            提交答卷
+          </button>
+        </div>
+      )}
+
+      {result && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <span className={`pill ${result.passed ? "ok" : "bad"}`}>
+            {result.passed ? "通过" : "未通过"} · {result.score} 分
+          </span>
+          {result.validUntil && (
+            <p className="muted">有效期至 {result.validUntil}</p>
+          )}
+        </div>
+      )}
+      {msg && <p className="muted">{msg}</p>}
+    </div>
+  );
+}

@@ -43,58 +43,60 @@ export default function Login() {
   }
 
   return (
-    <div className="portal" style={{ maxWidth: 420, paddingTop: 96 }}>
-      <div className="portal-kicker">
-        <span className="mark" aria-hidden />
-        Sign in
-      </div>
-      <h1 style={{ fontSize: "2.25rem", marginBottom: 10 }}>欢迎回来</h1>
-      <p className="muted" style={{ fontSize: 17, marginBottom: 28 }}>
-        {preset.tip} · 一点即可填入演示账号
-      </p>
+    <div className="stage">
+      <div className="stage-glow stage-glow-a" aria-hidden />
+      <div className="stage-glow stage-glow-b" aria-hidden />
+      <div className="stage-grid" aria-hidden />
 
-      <form
-        className="card"
-        style={{ border: "none", boxShadow: "var(--shadow)", borderRadius: 22 }}
-        onSubmit={submit}
-      >
-        <div className="field">
-          <label>手机号</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+      <div className="portal portal-login">
+        <div className="portal-kicker" style={{ marginBottom: 16 }}>
+          <span className="stage-logo-mark" style={{ width: 18, height: 18, borderRadius: 5 }} />
+          Sign in
         </div>
-        <div className="field">
-          <label>密码</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        {err && <p style={{ color: "var(--danger)", fontSize: 14 }}>{err}</p>}
-        <button
-          className="btn primary"
-          disabled={loading}
-          type="submit"
-          style={{ width: "100%", marginTop: 8 }}
-        >
-          {loading ? "登录中…" : "继续"}
-        </button>
-      </form>
+        <h1 style={{ fontSize: "2.4rem", marginBottom: 8 }}>欢迎回来</h1>
+        <p className="muted" style={{ marginBottom: 28, fontSize: 16 }}>
+          {preset.tip}
+        </p>
 
-      <div className="row" style={{ marginTop: 20 }}>
-        {tips.map(([k, v]) => (
+        <form className="card" style={{ borderRadius: 22, padding: 24 }} onSubmit={submit}>
+          <div className="field">
+            <label>手机号</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>密码</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          {err && <p style={{ color: "#ff8a80", fontSize: 14 }}>{err}</p>}
           <button
-            key={k}
-            type="button"
-            className="btn"
-            onClick={() => {
-              setPhone(v.phone);
-              setPassword(v.password);
-            }}
+            className="btn primary"
+            disabled={loading}
+            type="submit"
+            style={{ width: "100%", marginTop: 8 }}
           >
-            {v.tip}
+            {loading ? "登录中…" : "继续"}
           </button>
-        ))}
+        </form>
+
+        <div className="row" style={{ marginTop: 18 }}>
+          {tips.map(([k, v]) => (
+            <button
+              key={k}
+              type="button"
+              className="btn"
+              onClick={() => {
+                setPhone(v.phone);
+                setPassword(v.password);
+              }}
+            >
+              {v.tip}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

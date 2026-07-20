@@ -189,19 +189,18 @@ h2 {
 }
 
 .side {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, #06201e 0%, #041413 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
   padding: 28px 18px 32px;
   position: sticky;
   top: 0;
   height: 100vh;
   overflow-y: auto;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .side.side-gate {
-  background: rgba(232, 245, 244, 0.82);
+  background: linear-gradient(180deg, #0a2f2c 0%, #041413 100%);
 }
 
 .side .brand {
@@ -217,13 +216,13 @@ h2 {
   height: 32px;
   border-radius: 9px;
   flex-shrink: 0;
-  background: linear-gradient(160deg, var(--merck-glow) 0%, var(--merck) 55%, var(--merck-deep) 100%);
-  box-shadow: 0 4px 12px rgba(0, 122, 115, 0.35);
+  background: linear-gradient(145deg, #2dd4bf 0%, #007a73 50%, #004d49 100%);
+  box-shadow: 0 6px 18px rgba(0, 179, 168, 0.35);
 }
 
 .side .brand-text strong {
   display: block;
-  color: var(--apple-label);
+  color: #fff;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -232,7 +231,7 @@ h2 {
 .side .brand-text span {
   display: block;
   font-size: 12px;
-  color: var(--apple-tertiary);
+  color: rgba(255, 255, 255, 0.45);
   margin-top: 1px;
   font-weight: 400;
 }
@@ -243,16 +242,16 @@ h2 {
 
 .side .side-caption {
   font-size: 11px;
-  color: var(--apple-tertiary);
+  color: rgba(255, 255, 255, 0.35);
   margin: 18px 12px 8px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .side a {
   display: block;
-  color: var(--apple-secondary);
+  color: rgba(255, 255, 255, 0.62);
   padding: 11px 14px;
   border-radius: 10px;
   margin-bottom: 2px;
@@ -263,14 +262,14 @@ h2 {
 }
 
 .side a:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--apple-label);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
   opacity: 1;
 }
 
 .side a.active {
-  background: var(--merck-soft);
-  color: var(--merck-deep);
+  background: rgba(0, 179, 168, 0.18);
+  color: #5eead4;
   font-weight: 600;
 }
 
@@ -278,8 +277,8 @@ h2 {
   margin-top: 32px;
   padding: 16px 14px;
   font-size: 12px;
-  color: var(--apple-tertiary);
-  border-top: 1px solid var(--line);
+  color: rgba(255, 255, 255, 0.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   line-height: 1.5;
 }
 
@@ -482,116 +481,294 @@ h2 {
   border-radius: 980px;
 }
 
-/* —— Portal (Apple product page) —— */
-.portal {
-  max-width: 980px;
+/* —— Immersive portal stage —— */
+.stage {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #041413;
+  color: #f5f7f7;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: stageFloat 14s ease-in-out infinite;
+}
+
+.stage-glow-a {
+  width: 55vw;
+  height: 55vw;
+  max-width: 680px;
+  max-height: 680px;
+  top: -12%;
+  right: -8%;
+  background: radial-gradient(circle, rgba(0, 179, 168, 0.55) 0%, rgba(0, 122, 115, 0.15) 45%, transparent 70%);
+}
+
+.stage-glow-b {
+  width: 45vw;
+  height: 45vw;
+  max-width: 520px;
+  max-height: 520px;
+  bottom: -18%;
+  left: -10%;
+  background: radial-gradient(circle, rgba(0, 97, 92, 0.5) 0%, transparent 68%);
+  animation-delay: -6s;
+}
+
+.stage-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 20%, transparent 75%);
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+@keyframes stageFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-2%, 3%) scale(1.06);
+  }
+}
+
+.stage-nav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 36px;
+}
+
+.stage-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.stage-logo-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #2dd4bf 0%, #007a73 48%, #004d49 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 8px 24px rgba(0, 179, 168, 0.35);
+}
+
+.stage-badge {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 980px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.stage-nav-link {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 980px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.stage-nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  opacity: 1;
+}
+
+.stage-main {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 36px 72px;
+  max-width: 920px;
+  width: 100%;
   margin: 0 auto;
-  padding: 72px 28px 96px;
+  animation: stageIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes stageIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stage-eyebrow {
+  margin: 0 0 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #5eead4;
+}
+
+.stage-title {
+  margin: 0 0 48px;
+  font-size: clamp(2.75rem, 7vw, 4.5rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  color: #ffffff;
+  text-wrap: balance;
+}
+
+.stage-entries {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.stage-entry {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.3s ease;
+}
+
+.stage-entry:hover {
+  transform: translateX(6px);
+  background: rgba(0, 179, 168, 0.14);
+  border-color: rgba(94, 234, 212, 0.35);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  opacity: 1;
+  color: #fff;
+}
+
+.stage-entry-code {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.04em;
+}
+
+.stage-entry:hover .stage-entry-code {
+  color: #5eead4;
+}
+
+.stage-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stage-entry-body strong {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #fff;
+}
+
+.stage-entry-body span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.stage-entry-go {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.35);
+  transition: transform 0.25s ease, color 0.25s ease;
+}
+
+.stage-entry:hover .stage-entry-go {
+  color: #5eead4;
+  transform: translateX(4px);
 }
 
 .portal-kicker {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 28px;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--merck);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.portal-kicker .mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: linear-gradient(160deg, var(--merck-glow), var(--merck) 60%, var(--merck-deep));
-  box-shadow: 0 4px 14px rgba(0, 122, 115, 0.35);
+.portal.portal-login {
+  position: relative;
+  z-index: 2;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #f5f7f7;
 }
 
-.portal-hero {
-  margin-bottom: 56px;
-  max-width: 720px;
-  text-align: left;
+.portal.portal-login .portal-kicker {
+  color: #5eead4;
 }
-
-.portal-hero h1 {
-  font-size: clamp(2.5rem, 6vw, 3.75rem);
-  margin: 0 0 18px;
-  letter-spacing: -0.04em;
-  font-weight: 600;
-  line-height: 1.05;
+.portal.portal-login h1 {
+  color: #fff;
 }
-
-.portal-hero .lede {
-  font-size: 1.25rem;
-  color: var(--apple-secondary);
-  line-height: 1.5;
-  margin: 0;
-  font-weight: 400;
-  letter-spacing: -0.015em;
-  max-width: 34em;
+.portal.portal-login .muted {
+  color: rgba(255, 255, 255, 0.55);
 }
-
-.portal-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+.portal.portal-login .card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px);
+  color: #fff;
 }
-
-.portal-cards a.card {
-  color: inherit;
-  text-decoration: none;
-  padding: 32px 28px;
-  min-height: 200px;
-  border-radius: var(--radius-xl);
-  border: none;
-  box-shadow: var(--shadow);
-  background: var(--surface);
-  transition:
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.35s ease;
+.portal.portal-login .field label {
+  color: rgba(255, 255, 255, 0.55);
 }
-
-.portal-cards a.card:hover {
-  transform: scale(1.02);
-  box-shadow: var(--shadow-hover);
-  opacity: 1;
-  text-decoration: none;
+.portal.portal-login .field input {
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #fff;
 }
-
-.portal-cards a.card .tag {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--merck);
-  margin-bottom: 14px;
-  letter-spacing: -0.01em;
-}
-
-.portal-cards a.card strong {
-  display: block;
-  font-size: 1.5rem;
-  margin-bottom: 10px;
-  letter-spacing: -0.03em;
-  font-weight: 600;
-}
-
-.portal-cards a.card .muted {
-  font-size: 15px;
-  line-height: 1.45;
-}
-
-.portal-foot {
-  margin-top: 48px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
-  font-size: 14px;
-  color: var(--apple-tertiary);
-}
-
-@media (max-width: 900px) {
-  .portal-cards {
-    grid-template-columns: 1fr;
-  }
+.portal.portal-login .btn:not(.primary) {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 @media (max-width: 800px) {
@@ -623,10 +800,13 @@ h2 {
   .main {
     padding: 20px 16px 48px;
   }
-  .portal {
-    padding: 48px 20px 72px;
+  .stage-nav,
+  .stage-main {
+    padding-left: 20px;
+    padding-right: 20px;
   }
-  .portal-hero h1 {
-    font-size: 2.25rem;
+  .stage-title {
+    font-size: 2.4rem;
+    margin-bottom: 32px;
   }
 }

@@ -17,10 +17,10 @@ export default function AdminShell() {
           <div className="brand-mark" aria-hidden />
           <div className="brand-text">
             <strong>Gate Safety</strong>
-            <span>Admin Control</span>
+            <span>管理后台</span>
           </div>
         </div>
-        <p className="side-caption">Governance</p>
+        <p className="side-caption">导航</p>
         <NavLink to="/admin">运营看板</NavLink>
         <NavLink to="/admin/visits">到离场台账</NavLink>
         {!isCarrier && <NavLink to="/admin/documents">证件到期</NavLink>}
@@ -30,7 +30,7 @@ export default function AdminShell() {
         {isOps && (
           <>
             <p className="side-caption" style={{ marginTop: 16 }}>
-              Supervise
+              督导
             </p>
             <NavLink to="/gate">门岗作业台</NavLink>
           </>
@@ -44,8 +44,8 @@ export default function AdminShell() {
       <main className="main">
         <div className="topbar">
           <div>
-            <strong>Site · 华东一号仓</strong>
-            <span className="muted"> · 管理域 · 放行请使用门岗作业台</span>
+            <strong>华东一号仓</strong>
+            <span className="muted"> · 管理域</span>
           </div>
           <LogoutButton />
         </div>

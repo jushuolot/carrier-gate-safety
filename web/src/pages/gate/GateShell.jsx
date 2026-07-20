@@ -13,16 +13,16 @@ export default function GateShell() {
           <div className="brand-mark" aria-hidden />
           <div className="brand-text">
             <strong>Gate Safety</strong>
-            <span>Gate Operations</span>
+            <span>门岗作业</span>
           </div>
         </div>
-        <p className="side-caption">Shift desk</p>
+        <p className="side-caption">当班</p>
         <NavLink to="/gate">待办队列</NavLink>
         <NavLink to="/gate/onsite">当前在场</NavLink>
         <div className="side-meta">
           {user.name}
           <br />
-          Gate shift
+          门岗班次
         </div>
         {(user.role === "admin" || user.role === "ehs") && (
           <div style={{ padding: "0 4px" }}>
@@ -33,8 +33,8 @@ export default function GateShell() {
       <main className="main">
         <div className="topbar">
           <div>
-            <strong>Gate · 一号门</strong>
-            <span className="muted"> · 当班放行 · 台账与规则请走后台</span>
+            <strong>一号门</strong>
+            <span className="muted"> · 当班放行</span>
           </div>
           <LogoutButton />
         </div>

@@ -1,43 +1,56 @@
 /**
- * Merck LS–inspired visual system
- * Primary: Merck Green #007A73 · technical grid · mono accents
+ * Apple product tone × Merck LS palette
+ * — generous space, display type, soft material
+ * — color: Merck Green #007A73
  */
 :root {
   --merck: #007a73;
-  --merck-deep: #005c57;
-  --merck-ink: #003d3a;
-  --merck-soft: #e6f4f3;
-  --merck-mist: #f3faf9;
-  --merck-glow: #00b3a8;
-  --violet: #5b4b8a;
-  --coral: #e4572e;
-  --amber: #d97706;
-  --ok: #0f7a5a;
-  --danger: #c62828;
-  --warn: #b45309;
+  --merck-deep: #00615c;
+  --merck-ink: #0a1f1e;
+  --merck-soft: #e8f5f4;
+  --merck-mist: #f2f9f8;
+  --merck-glow: #1aa39a;
 
-  --bg: #f5f7f7;
-  --surface: #ffffff;
-  --text: #1a2423;
-  --muted: #5a6b69;
-  --line: #d5e0de;
-  --line-strong: #b8c9c6;
+  --apple-gray: #f5f5f7;
+  --apple-fill: #ffffff;
+  --apple-label: #1d1d1f;
+  --apple-secondary: #6e6e73;
+  --apple-tertiary: #86868b;
+  --apple-hairline: rgba(0, 0, 0, 0.08);
+
+  --ok: #248a3d;
+  --danger: #d70015;
+  --warn: #c93400;
+
+  --bg: var(--apple-gray);
+  --surface: var(--apple-fill);
+  --text: var(--apple-label);
+  --muted: var(--apple-secondary);
+  --line: var(--apple-hairline);
+  --line-strong: rgba(0, 0, 0, 0.12);
   --accent: var(--merck);
   --accent-2: var(--merck-deep);
   --on-accent: #ffffff;
-  --side: #003d3a;
-  --side-2: #00504b;
-  --radius: 2px;
-  --radius-lg: 4px;
-  --font: "Source Sans 3", "Noto Sans SC", "PingFang SC", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 28px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", "Source Sans 3", "PingFang SC", "Noto Sans SC", sans-serif;
+  --mono: "SF Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
 
   font-family: var(--font);
   color: var(--text);
   background: var(--bg);
-  line-height: 1.45;
-  font-size: 15px;
+  line-height: 1.47;
+  font-size: 17px;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -47,28 +60,17 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--bg);
-  background-image:
-    linear-gradient(rgba(0, 122, 115, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 122, 115, 0.035) 1px, transparent 1px),
-    radial-gradient(900px 420px at 0% 0%, rgba(0, 179, 168, 0.12), transparent 55%),
-    radial-gradient(700px 380px at 100% 0%, rgba(91, 75, 138, 0.08), transparent 50%);
-  background-size:
-    24px 24px,
-    24px 24px,
-    auto,
-    auto;
+  background: var(--bg);
+  color: var(--text);
 }
 
 a {
-  color: var(--merck-deep);
+  color: var(--merck);
   text-decoration: none;
-  font-weight: 500;
+  transition: opacity 0.2s ease;
 }
 a:hover {
-  color: var(--merck);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  opacity: 0.72;
 }
 
 button,
@@ -76,175 +78,163 @@ input,
 select,
 textarea {
   font: inherit;
+  letter-spacing: inherit;
 }
 
 h1,
 h2,
 h3 {
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  color: var(--merck-ink);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--apple-label);
+  line-height: 1.15;
 }
 
 h2 {
-  font-size: 1.45rem;
+  font-size: 1.75rem;
+  margin: 0 0 0.35em;
 }
 
-/* —— Buttons —— */
+/* —— Buttons (Apple continuous) —— */
 .btn {
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text);
-  padding: 9px 14px;
-  border-radius: var(--radius);
+  padding: 11px 18px;
+  border-radius: 980px;
   cursor: pointer;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  font-size: 15px;
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
+    background 0.22s ease,
+    transform 0.22s ease,
+    opacity 0.22s ease;
 }
 
 .btn:hover {
-  border-color: var(--merck);
-  color: var(--merck-deep);
-  background: var(--merck-mist);
+  background: rgba(0, 0, 0, 0.09);
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btn.primary {
   background: var(--merck);
-  border-color: var(--merck);
   color: var(--on-accent);
 }
 .btn.primary:hover {
   background: var(--merck-deep);
-  border-color: var(--merck-deep);
   color: #fff;
 }
 
 .btn.danger {
   background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
-.btn.danger:hover {
-  filter: brightness(0.95);
   color: #fff;
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
-/* —— Surfaces —— */
+/* —— Cards / materials —— */
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: 18px 18px 16px;
-  position: relative;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
 }
 
-.card::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--merck);
-  opacity: 0.85;
+.card:hover {
+  box-shadow: var(--shadow);
 }
 
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
-  border-radius: var(--radius);
-  font-size: 11px;
-  font-family: var(--mono);
+  padding: 4px 10px;
+  border-radius: 980px;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.02em;
-  border: 1px solid var(--line);
-  background: var(--merck-mist);
-  color: var(--merck-ink);
-  text-transform: none;
+  border: none;
+  background: var(--merck-soft);
+  color: var(--merck-deep);
 }
 
 .pill.ok {
   color: var(--ok);
-  border-color: #9fd5c2;
-  background: #eef8f3;
+  background: #e4f5e9;
 }
 .pill.warn {
   color: var(--warn);
-  border-color: #f0d0a0;
-  background: #fff8eb;
+  background: #fff0e6;
 }
 .pill.bad {
   color: var(--danger);
-  border-color: #f0b4b0;
-  background: #fff1f0;
+  background: #ffe8eb;
 }
 
-/* —— App shell —— */
+/* —— Shell —— */
 .layout {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: 260px 1fr;
   min-height: 100vh;
 }
 
 .side {
-  background: linear-gradient(180deg, var(--side) 0%, #002925 100%);
-  color: #d7ebe8;
-  padding: 22px 14px 28px;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-right: 1px solid var(--line);
+  padding: 28px 18px 32px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .side.side-gate {
-  background: linear-gradient(180deg, #004843 0%, #00312e 100%);
+  background: rgba(232, 245, 244, 0.82);
 }
 
 .side .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 16px;
+  gap: 12px;
+  padding: 4px 10px 24px;
+  margin-bottom: 8px;
 }
 
 .side .brand-mark {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   flex-shrink: 0;
-  background:
-    linear-gradient(135deg, var(--merck-glow) 0%, var(--merck) 45%, var(--violet) 100%);
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-}
-
-.side .brand-text {
-  min-width: 0;
+  background: linear-gradient(160deg, var(--merck-glow) 0%, var(--merck) 55%, var(--merck-deep) 100%);
+  box-shadow: 0 4px 12px rgba(0, 122, 115, 0.35);
 }
 
 .side .brand-text strong {
   display: block;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--mono);
+  color: var(--apple-label);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .side .brand-text span {
   display: block;
-  font-size: 11px;
-  color: #8fbdb7;
-  margin-top: 2px;
+  font-size: 12px;
+  color: var(--apple-tertiary);
+  margin-top: 1px;
+  font-weight: 400;
 }
 
 .side h1 {
@@ -253,160 +243,162 @@ h2 {
 
 .side .side-caption {
   font-size: 11px;
-  color: #8fbdb7;
-  margin: 0 0 12px;
-  padding: 0 12px;
-  font-family: var(--mono);
-  letter-spacing: 0.04em;
+  color: var(--apple-tertiary);
+  margin: 18px 12px 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .side a {
   display: block;
-  color: #c5deda;
-  padding: 10px 12px;
-  border-radius: var(--radius);
+  color: var(--apple-secondary);
+  padding: 11px 14px;
+  border-radius: 10px;
   margin-bottom: 2px;
   font-weight: 500;
+  font-size: 15px;
   text-decoration: none;
-  border-left: 2px solid transparent;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .side a:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  text-decoration: none;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--apple-label);
+  opacity: 1;
 }
 
 .side a.active {
-  background: rgba(0, 179, 168, 0.18);
-  color: #fff;
-  border-left-color: var(--merck-glow);
+  background: var(--merck-soft);
+  color: var(--merck-deep);
+  font-weight: 600;
 }
 
 .side .side-meta {
-  margin-top: 28px;
-  padding: 12px;
+  margin-top: 32px;
+  padding: 16px 14px;
   font-size: 12px;
-  color: #8fbdb7;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  font-family: var(--mono);
+  color: var(--apple-tertiary);
+  border-top: 1px solid var(--line);
+  line-height: 1.5;
 }
 
 .main {
-  padding: 22px 28px 48px;
-  max-width: 1200px;
+  padding: 36px 40px 64px;
+  max-width: 1080px;
 }
 
 .topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 22px;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--line);
+  margin-bottom: 32px;
+  gap: 16px;
 }
 
 .topbar strong {
-  font-family: var(--mono);
   font-size: 13px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--merck-ink);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--apple-label);
+}
+
+.topbar .muted {
+  font-size: 13px;
 }
 
 .grid {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .grid.stats {
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .stat {
-  padding: 16px !important;
+  padding: 22px !important;
+  border-radius: var(--radius-lg) !important;
 }
 
 .stat .v {
-  font-size: 30px;
-  font-weight: 700;
-  margin-top: 6px;
-  font-family: var(--mono);
+  font-size: 36px;
+  font-weight: 600;
+  margin-top: 8px;
+  letter-spacing: -0.04em;
   color: var(--merck);
-  letter-spacing: -0.03em;
+  line-height: 1;
 }
 
 .stat .l {
-  color: var(--muted);
+  color: var(--apple-tertiary);
   font-size: 12px;
-  font-family: var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 14px;
 }
 
 .table th,
 .table td {
   text-align: left;
-  padding: 11px 10px;
+  padding: 14px 12px;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
 
 .table th {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 11px;
-  font-family: var(--mono);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: var(--merck-mist);
+  color: var(--apple-tertiary);
+  font-weight: 500;
+  font-size: 12px;
+  background: transparent;
 }
 
+.table tbody tr {
+  transition: background 0.15s ease;
+}
 .table tbody tr:hover td {
   background: rgba(0, 122, 115, 0.03);
 }
 
 .field {
   display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
 .field label {
-  font-size: 12px;
-  color: var(--muted);
-  font-family: var(--mono);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  font-size: 13px;
+  color: var(--apple-secondary);
+  font-weight: 500;
 }
 
 .field input,
 .field select {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: #fff;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .field input:focus,
 .field select:focus {
   outline: none;
   border-color: var(--merck);
-  box-shadow: 0 0 0 3px rgba(0, 122, 115, 0.15);
+  box-shadow: 0 0 0 4px rgba(0, 122, 115, 0.18);
 }
 
 .row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
   align-items: center;
 }
@@ -417,21 +409,30 @@ h2 {
 
 /* —— Driver H5 —— */
 .h5 {
-  max-width: 480px;
+  max-width: 430px;
   margin: 0 auto;
-  padding: 18px 16px 40px;
+  padding: 28px 20px 56px;
   min-height: 100vh;
 }
 
 .h5::before {
-  content: "GATE SAFETY";
+  content: "Gate Safety";
   display: block;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  color: var(--merck);
-  margin-bottom: 10px;
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--merck);
+  margin-bottom: 20px;
+}
+
+.h5 h2 {
+  font-size: 1.85rem;
+  margin-bottom: 8px;
+}
+
+.h5 .card {
+  margin-top: 4px;
+  padding: 20px;
 }
 
 .light {
@@ -443,11 +444,11 @@ h2 {
 .light .dot {
   width: 8px;
   height: 8px;
-  border-radius: 1px;
-  background: #98a2b3;
+  border-radius: 50%;
+  background: #c7c7cc;
 }
 .light .dot.on {
-  background: var(--merck-glow);
+  background: var(--merck);
 }
 .light .dot.off {
   background: var(--danger);
@@ -458,119 +459,139 @@ h2 {
   width: 100%;
   text-align: left;
   margin-bottom: 8px;
-  padding: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
 }
 
 .quiz-opt.picked {
-  border-color: var(--merck);
   background: var(--merck-soft);
-  color: var(--merck-ink);
+  color: var(--merck-deep);
+  box-shadow: inset 0 0 0 1.5px var(--merck);
 }
 
 .progress {
-  height: 6px;
-  background: #dfe8e6;
-  border-radius: 1px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 980px;
   overflow: hidden;
 }
 .progress > i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--merck), var(--merck-glow));
+  background: var(--merck);
+  border-radius: 980px;
 }
 
-/* —— Portal —— */
+/* —— Portal (Apple product page) —— */
 .portal {
-  max-width: 960px;
+  max-width: 980px;
   margin: 0 auto;
-  padding: 56px 24px 72px;
+  padding: 72px 28px 96px;
 }
 
 .portal-kicker {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 18px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--merck);
+  margin-bottom: 28px;
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--merck);
 }
 
 .portal-kicker .mark {
-  width: 18px;
-  height: 18px;
-  background: linear-gradient(135deg, var(--merck-glow), var(--merck) 50%, var(--violet));
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(160deg, var(--merck-glow), var(--merck) 60%, var(--merck-deep));
+  box-shadow: 0 4px 14px rgba(0, 122, 115, 0.35);
 }
 
 .portal-hero {
-  margin-bottom: 36px;
-  max-width: 640px;
+  margin-bottom: 56px;
+  max-width: 720px;
+  text-align: left;
 }
 
 .portal-hero h1 {
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  margin: 0 0 14px;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-  color: var(--merck-ink);
+  font-size: clamp(2.5rem, 6vw, 3.75rem);
+  margin: 0 0 18px;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+  line-height: 1.05;
 }
 
 .portal-hero .lede {
-  font-size: 1.05rem;
-  color: var(--muted);
-  line-height: 1.65;
+  font-size: 1.25rem;
+  color: var(--apple-secondary);
+  line-height: 1.5;
   margin: 0;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  max-width: 34em;
 }
 
 .portal-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
 }
 
 .portal-cards a.card {
   color: inherit;
   text-decoration: none;
-  padding: 22px 20px;
-  min-height: 140px;
+  padding: 32px 28px;
+  min-height: 200px;
+  border-radius: var(--radius-xl);
+  border: none;
+  box-shadow: var(--shadow);
+  background: var(--surface);
   transition:
-    border-color 0.15s,
-    transform 0.15s,
-    background 0.15s;
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease;
 }
 
 .portal-cards a.card:hover {
-  border-color: var(--merck);
-  background: var(--merck-mist);
+  transform: scale(1.02);
+  box-shadow: var(--shadow-hover);
+  opacity: 1;
   text-decoration: none;
-  transform: translateY(-2px);
+}
+
+.portal-cards a.card .tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--merck);
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
 }
 
 .portal-cards a.card strong {
   display: block;
-  font-size: 1.15rem;
-  margin-bottom: 8px;
-  color: var(--merck-ink);
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+  letter-spacing: -0.03em;
+  font-weight: 600;
 }
 
-.portal-cards a.card .tag {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--merck);
-  margin-bottom: 10px;
+.portal-cards a.card .muted {
+  font-size: 15px;
+  line-height: 1.45;
 }
 
 .portal-foot {
-  margin-top: 28px;
-  padding-top: 16px;
+  margin-top: 48px;
+  padding-top: 24px;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 14px;
+  color: var(--apple-tertiary);
+}
+
+@media (max-width: 900px) {
+  .portal-cards {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 800px) {
@@ -578,12 +599,15 @@ h2 {
     grid-template-columns: 1fr;
   }
   .side {
+    position: relative;
+    height: auto;
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     overflow-x: auto;
-    padding: 12px;
+    padding: 12px 14px;
+    backdrop-filter: blur(16px);
   }
   .side .brand,
   .side .side-caption,
@@ -593,19 +617,16 @@ h2 {
   .side a {
     white-space: nowrap;
     margin: 0;
-    border-left: none;
-    border-bottom: 2px solid transparent;
-  }
-  .side a.active {
-    border-left: none;
-    border-bottom-color: var(--merck-glow);
+    font-size: 14px;
+    padding: 8px 12px;
   }
   .main {
-    padding: 16px;
+    padding: 20px 16px 48px;
   }
-  .card::before {
-    width: 100%;
-    height: 3px;
-    bottom: auto;
+  .portal {
+    padding: 48px 20px 72px;
+  }
+  .portal-hero h1 {
+    font-size: 2.25rem;
   }
 }

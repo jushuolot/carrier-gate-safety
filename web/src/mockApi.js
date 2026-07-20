@@ -3,7 +3,7 @@
  * 数据落在 localStorage，刷新可续。
  */
 
-const STORE_KEY = "cgs-pages-demo-v1";
+const STORE_KEY = "cgs-pages-demo-v2";
 
 function addDays(n) {
   const d = new Date();
@@ -30,15 +30,21 @@ function seed() {
       { id: "u-carrier", phone: "13800000003", name: "承运商管理员", password: "carrier123", role: "carrier_admin", carrier_id: "carrier-1", driver_id: null },
       { id: "u-d1", phone: "13900000001", name: "新司机·王强", password: "driver123", role: "driver", carrier_id: "carrier-1", driver_id: "driver-new" },
       { id: "u-d2", phone: "13900000002", name: "熟手·李明", password: "driver123", role: "driver", carrier_id: "carrier-1", driver_id: "driver-ok" },
+      { id: "u-pickup", phone: "13700000001", name: "自提客户·陈女士", password: "pickup123", role: "driver", carrier_id: "carrier-self", driver_id: "driver-pickup" },
     ],
-    carriers: [{ id: "carrier-1", name: "示例物流有限公司", credit_code: "91310000MA1XXXXX1X", status: "active", risk_score: 0 }],
+    carriers: [
+      { id: "carrier-1", name: "示例物流有限公司", credit_code: "91310000MA1XXXXX1X", status: "active", risk_score: 0 },
+      { id: "carrier-self", name: "客户自提通道", credit_code: "SELF-PICKUP", status: "active", risk_score: 0 },
+    ],
     drivers: [
       { id: "driver-new", carrier_id: "carrier-1", name: "新司机·王强", phone: "13900000001", status: "active" },
       { id: "driver-ok", carrier_id: "carrier-1", name: "熟手·李明", phone: "13900000002", status: "active" },
+      { id: "driver-pickup", carrier_id: "carrier-self", name: "自提客户（通用）", phone: "13700000001", status: "active" },
     ],
     vehicles: [
       { id: "veh-1", carrier_id: "carrier-1", plate_no: "沪A12345", vehicle_type: "重型厢式货车", status: "active" },
       { id: "veh-2", carrier_id: "carrier-1", plate_no: "沪B67890", vehicle_type: "重型厢式货车", status: "active" },
+      { id: "veh-pickup", carrier_id: "carrier-self", plate_no: "沪C88888", vehicle_type: "小型客车/自提", status: "active" },
     ],
     sites: [{ id: "site-1", name: "华东一号仓", address: "上海市浦东新区示例路 88 号" }],
     course: {
@@ -120,6 +126,61 @@ const LABELS = {
   insurance: "保险单",
 };
 
+const VISIT_TYPES = {
+  carrier: {
+    id: "carrier",
+    label: "承运到场",
+    inspectChecklist: [
+      { key: "ppe", label: "PPE 佩戴合格（安全帽/反光衣）" },
+      { key: "vehicle", label: "车辆外观/轮胎检查合格" },
+      { key: "docs", label: "纸质证件与系统一致" },
+      { key: "hazard", label: "无泄漏/无危险品违规" },
+    ],
+    departCore: [
+      { key: "loadDone", label: "装卸完成确认" },
+      { key: "inventoryDone", label: "物资/铅封清点" },
+      { key: "safetySigned", label: "安全确认签署" },
+      { key: "gateCheckout", label: "门岗签退" },
+    ],
+    departOptional: [
+      { key: "weighbridge", label: "过磅记录" },
+      { key: "sealPhoto", label: "铅封拍照取证" },
+    ],
+  },
+  self_pickup: {
+    id: "self_pickup",
+    label: "客户自提",
+    inspectChecklist: [
+      { key: "idVerify", label: "提货人身份核验" },
+      { key: "orderMatch", label: "提货单/订单与实物一致" },
+      { key: "ppe", label: "进入作业区 PPE 合格（若入区）" },
+    ],
+    departCore: [
+      { key: "orderConfirm", label: "提货单核对完成" },
+      { key: "goodsHandover", label: "货物交接签收" },
+      { key: "gateCheckout", label: "门岗签退/出门证" },
+    ],
+    departOptional: [
+      { key: "safetyBrief", label: "现场安全告知（短训确认）" },
+      { key: "vehicleInspect", label: "自提车辆外观检查" },
+      { key: "weighbridge", label: "过磅" },
+      { key: "packingPhoto", label: "装车/件数拍照取证" },
+      { key: "invoicePrint", label: "打印出门证/提货凭证" },
+    ],
+  },
+};
+
+function resolveDepartSteps(visitType, selectedOptions = []) {
+  const profile = VISIT_TYPES[visitType] || VISIT_TYPES.carrier;
+  const allowed = new Set(profile.departOptional.map((s) => s.key));
+  const selected = (selectedOptions || []).filter((k) => allowed.has(k));
+  const optMap = Object.fromEntries(profile.departOptional.map((s) => [s.key, s]));
+  return [
+    ...profile.departCore.map((s) => ({ ...s, required: true, source: "core" })),
+    ...selected.map((key) => ({ ...optMap[key], required: true, source: "optional" })),
+  ];
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
@@ -145,8 +206,14 @@ function enrichVisit(s, v) {
   const d = s.drivers.find((x) => x.id === v.driver_id);
   const vh = s.vehicles.find((x) => x.id === v.vehicle_id);
   const c = s.carriers.find((x) => x.id === v.carrier_id);
+  const visitType = v.visit_type || "carrier";
+  const selectedOptions = v.selected_options || [];
   return {
     ...v,
+    visit_type: visitType,
+    visit_type_label: (VISIT_TYPES[visitType] || VISIT_TYPES.carrier).label,
+    selected_options: selectedOptions,
+    depart_steps: resolveDepartSteps(visitType, selectedOptions),
     driver_name: d?.name,
     driver_phone: d?.phone,
     plate_no: vh?.plate_no,
@@ -158,7 +225,18 @@ function enrichVisit(s, v) {
   };
 }
 
-function evaluate(s, { driverId, vehicleId, carrierId }) {
+function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", selectedOptions = [] }) {
+  if (visitType === "self_pickup") {
+    return {
+      allowed: true,
+      reasons: [],
+      lights: { training: !selectedOptions.includes("safetyBrief"), documents: true, subject: true },
+      mode: "self_pickup",
+      note: "自提走轻量准入；身份核验与提货单核对在门岗安检完成；勾选的可选步骤在离场收口强制完成",
+      training: null,
+      course: null,
+    };
+  }
   const reasons = [];
   const today = addDays(0);
   const carrier = s.carriers.find((c) => c.id === carrierId);
@@ -281,6 +359,17 @@ export async function mockApi(path, options = {}) {
 
   if (p === "/sites") return ok({ items: s.sites });
   if (p === "/meta/doc-types") return ok({ labels: LABELS });
+  if (p === "/meta/visit-types") {
+    return ok({
+      items: Object.values(VISIT_TYPES).map((t) => ({
+        id: t.id,
+        label: t.label,
+        departCore: t.departCore,
+        departOptional: t.departOptional,
+        inspectChecklist: t.inspectChecklist,
+      })),
+    });
+  }
 
   if (p === "/dashboard") {
     const today = addDays(0);
@@ -429,21 +518,33 @@ export async function mockApi(path, options = {}) {
   }
 
   if (p === "/visits" && method === "POST") {
+    const type = body.visitType === "self_pickup" ? "self_pickup" : "carrier";
+    if (type === "self_pickup" && (!body.customerName || !body.pickupRef)) {
+      fail("自提须填写提货人姓名与提货单号");
+    }
+    const profile = VISIT_TYPES[type];
+    const allowed = new Set(profile.departOptional.map((x) => x.key));
+    const selected = (body.selectedOptions || []).filter((k) => allowed.has(k));
     const id = nid();
     const v = {
       id,
       site_id: body.siteId || "site-1",
-      carrier_id: body.carrierId,
-      driver_id: body.driverId,
-      vehicle_id: body.vehicleId,
+      carrier_id: body.carrierId || (type === "self_pickup" ? "carrier-self" : null),
+      driver_id: body.driverId || (type === "self_pickup" ? "driver-pickup" : null),
+      vehicle_id: body.vehicleId || (type === "self_pickup" ? "veh-pickup" : null),
       appointment_at: body.appointmentAt || now(),
       status: "appointed",
       block_reasons: null,
+      visit_type: type,
+      selected_options: selected,
+      customer_name: body.customerName || null,
+      customer_phone: body.customerPhone || null,
+      pickup_ref: body.pickupRef || null,
       created_at: now(),
       updated_at: now(),
     };
     s.visits.unshift(v);
-    audit(s, user, "visit.create", "visit", id, {});
+    audit(s, user, "visit.create", "visit", id, { visitType: type, selected });
     save(s);
     return ok({ visit: enrichVisit(s, v) });
   }
@@ -455,14 +556,29 @@ export async function mockApi(path, options = {}) {
     const action = visitMatch[2];
 
     if (!action && method === "GET") {
-      return ok({ visit: enrichVisit(s, visit), access: evaluate(s, { driverId: visit.driver_id, vehicleId: visit.vehicle_id, carrierId: visit.carrier_id }) });
+      const selectedOptions = visit.selected_options || [];
+      return ok({
+        visit: enrichVisit(s, visit),
+        access: evaluate(s, {
+          driverId: visit.driver_id,
+          vehicleId: visit.vehicle_id,
+          carrierId: visit.carrier_id,
+          visitType: visit.visit_type || "carrier",
+          selectedOptions,
+        }),
+        departSteps: resolveDepartSteps(visit.visit_type || "carrier", selectedOptions),
+        inspectChecklist: (VISIT_TYPES[visit.visit_type] || VISIT_TYPES.carrier).inspectChecklist,
+      });
     }
 
     if (action === "checkin" && method === "POST") {
+      const selectedOptions = visit.selected_options || [];
       const access = evaluate(s, {
         driverId: visit.driver_id,
         vehicleId: visit.vehicle_id,
         carrierId: visit.carrier_id,
+        visitType: visit.visit_type || "carrier",
+        selectedOptions,
       });
       visit.checkin_at = now();
       visit.updated_at = now();
@@ -480,8 +596,11 @@ export async function mockApi(path, options = {}) {
     }
 
     if (action === "inspect" && method === "POST") {
+      const profile = VISIT_TYPES[visit.visit_type] || VISIT_TYPES.carrier;
       const checklist = body.checklist || {};
-      const pass = body.pass !== false && Object.values(checklist).every(Boolean);
+      const pass =
+        body.pass !== false &&
+        profile.inspectChecklist.every((c) => checklist[c.key] === true);
       visit.updated_at = now();
       visit.inspection_json = { checklist, pass, at: now() };
       if (!pass) {
@@ -499,24 +618,30 @@ export async function mockApi(path, options = {}) {
     }
 
     if (action === "depart" && method === "POST") {
-      const steps = {
-        loadDone: !!body.loadDone,
-        inventoryDone: !!body.inventoryDone,
-        safetySigned: !!body.safetySigned,
-        gateCheckout: !!body.gateCheckout,
-      };
-      const missing = Object.entries(steps).filter(([, v]) => !v).map(([k]) => k);
+      const visitType = visit.visit_type || "carrier";
+      const selectedOptions = visit.selected_options || [];
+      const required = resolveDepartSteps(visitType, selectedOptions);
+      const steps = Object.fromEntries(required.map((s) => [s.key, !!(body[s.key] ?? body.steps?.[s.key])]));
+      const missing = required.filter((s) => !steps[s.key]).map((s) => s.key);
       visit.updated_at = now();
       if (missing.length) {
         visit.status = "departing";
-        visit.departure_json = { steps, missing, at: now() };
+        visit.departure_json = { steps, missing, required, at: now() };
         save(s);
-        return ok({ ok: false, missing, visit: enrichVisit(s, visit), message: "离场收口未完成" });
+        return ok({
+          ok: false,
+          missing,
+          required,
+          visit: enrichVisit(s, visit),
+          message: "离场收口未完成（含已勾选的可选步骤）",
+        });
       }
-      const weight = { ok: true, weightKg: 15000 + Math.floor(Math.random() * 3000), at: now() };
+      const weight = selectedOptions.includes("weighbridge")
+        ? { ok: true, weightKg: 15000 + Math.floor(Math.random() * 3000), at: now() }
+        : null;
       visit.status = "completed";
       visit.checkout_at = now();
-      visit.departure_json = { steps, weight, at: now() };
+      visit.departure_json = { steps, weight, selectedOptions, at: now() };
       const deviceResult = { ok: true, gate: "open", direction: "out", txnId: nid() };
       deviceEvent(s, "barrier", "barrier-out-1", "opened", deviceResult);
       save(s);

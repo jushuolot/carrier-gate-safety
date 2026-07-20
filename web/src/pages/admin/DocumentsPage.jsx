@@ -13,8 +13,9 @@ export default function DocumentsPage() {
 
   return (
     <div>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0 }}>证件到期驾驶舱</h2>
+      <h2 style={{ marginTop: 0 }}>证件到期</h2>
+      <p className="muted">后台催办补证与风险看板。门岗侧只看到放行时的拦截结果，不在此维护。</p>
+      <div className="row" style={{ justifyContent: "flex-end", marginBottom: 12 }}>
         <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
           <option value={7}>7 天内</option>
           <option value={14}>14 天内</option>

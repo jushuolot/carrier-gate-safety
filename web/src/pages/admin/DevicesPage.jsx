@@ -36,10 +36,10 @@ export default function DevicesPage() {
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>设备对接</h2>
+      <h2 style={{ marginTop: 0 }}>设备与对接</h2>
       <p className="muted">
-        业务通过 DeviceHub 调用；下列 mock 在线，海康/大华 stub 显示离线待对接。详见{" "}
-        <code>server/src/devices/README.md</code>
+        管理域查看适配器状态与事件流；日常开闸由门岗作业台在放行时自动触发。厂商 stub
+        离线表示待对接。
       </p>
 
       <div className="card">

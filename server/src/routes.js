@@ -5,6 +5,14 @@ import { db } from "./db.js";
 import { evaluateAccess } from "./services/access.js";
 import { extractDocument, DOC_TYPE_LABELS } from "./services/ocr.js";
 import { audit } from "./services/audit.js";
+import {
+  getVisitProfile,
+  listVisitTypeMeta,
+  missingDepartSteps,
+  needsWeighOnDepart,
+  normalizeSelectedOptions,
+  resolveDepartSteps,
+} from "./services/visitProfiles.js";
 
 export function createApiRouter({ deviceHub }) {
   const router = express.Router();
@@ -36,6 +44,10 @@ export function createApiRouter({ deviceHub }) {
 
   router.get("/meta/doc-types", (_req, res) => {
     res.json({ labels: DOC_TYPE_LABELS });
+  });
+
+  router.get("/meta/visit-types", (_req, res) => {
+    res.json({ items: listVisitTypeMeta() });
   });
 
   // ---- dashboard ----
@@ -372,25 +384,28 @@ export function createApiRouter({ deviceHub }) {
         .all();
     }
     res.json({
-      items: items.map((v) => ({
-        ...v,
-        block_reasons: safeJson(v.block_reasons),
-        inspection: safeJson(v.inspection_json),
-        departure: safeJson(v.departure_json),
-      })),
+      items: items.map((v) => enrichVisit(v)),
     });
   });
 
   router.get("/visits/:id", auth, (req, res) => {
     const v = getVisit(req.params.id);
     if (!v) return res.status(404).json({ error: "到访单不存在" });
+    const selectedOptions = safeJson(v.selected_options) || [];
     const access = evaluateAccess({
       siteId: v.site_id,
       driverId: v.driver_id,
       vehicleId: v.vehicle_id,
       carrierId: v.carrier_id,
+      visitType: v.visit_type || "carrier",
+      selectedOptions,
     });
-    res.json({ visit: enrichVisit(v), access });
+    res.json({
+      visit: enrichVisit(v),
+      access,
+      departSteps: resolveDepartSteps(v.visit_type || "carrier", selectedOptions),
+      inspectChecklist: getVisitProfile(v.visit_type || "carrier").inspectChecklist,
+    });
   });
 
   router.post("/visits", auth, (req, res) => {
@@ -400,18 +415,54 @@ export function createApiRouter({ deviceHub }) {
       driverId,
       vehicleId,
       appointmentAt,
+      visitType = "carrier",
+      selectedOptions = [],
+      customerName,
+      customerPhone,
+      pickupRef,
     } = req.body || {};
-    if (!carrierId || !driverId || !vehicleId) {
+
+    const type = visitType === "self_pickup" ? "self_pickup" : "carrier";
+    const options = normalizeSelectedOptions(type, selectedOptions);
+
+    let cid = carrierId;
+    let did = driverId;
+    let vid = vehicleId;
+
+    if (type === "self_pickup") {
+      if (!customerName || !pickupRef) {
+        return res.status(400).json({ error: "自提须填写提货人姓名与提货单号" });
+      }
+      cid = cid || "carrier-self";
+      did = did || req.user.driver_id || "driver-pickup";
+      vid = vid || "veh-pickup";
+    } else if (!cid || !did || !vid) {
       return res.status(400).json({ error: "缺少承运商/司机/车辆" });
     }
+
     const now = new Date().toISOString();
     const id = nanoid();
     db.prepare(
       `INSERT INTO visits
-       (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'appointed', NULL, ?, ?)`
-    ).run(id, siteId, carrierId, driverId, vehicleId, appointmentAt || now, now, now);
-    audit(req.user, "visit.create", "visit", id, { carrierId, driverId, vehicleId });
+       (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
+        visit_type, selected_options, customer_name, customer_phone, pickup_ref, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'appointed', NULL, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      siteId,
+      cid,
+      did,
+      vid,
+      appointmentAt || now,
+      type,
+      JSON.stringify(options),
+      customerName || null,
+      customerPhone || null,
+      pickupRef || null,
+      now,
+      now
+    );
+    audit(req.user, "visit.create", "visit", id, { visitType: type, options, pickupRef });
     res.json({ visit: enrichVisit(getVisit(id)) });
   });
 
@@ -421,11 +472,14 @@ export function createApiRouter({ deviceHub }) {
     if (!["appointed", "access_pending"].includes(v.status)) {
       return res.status(400).json({ error: `当前状态不可报到: ${v.status}` });
     }
+    const selectedOptions = safeJson(v.selected_options) || [];
     const access = evaluateAccess({
       siteId: v.site_id,
       driverId: v.driver_id,
       vehicleId: v.vehicle_id,
       carrierId: v.carrier_id,
+      visitType: v.visit_type || "carrier",
+      selectedOptions,
     });
     const now = new Date().toISOString();
     if (!access.allowed) {
@@ -443,7 +497,7 @@ export function createApiRouter({ deviceHub }) {
     db.prepare(
       `UPDATE visits SET status = 'inspecting', checkin_at = ?, admitted_at = ?, block_reasons = NULL, updated_at = ? WHERE id = ?`
     ).run(now, now, now, v.id);
-    audit(req.user, "visit.checkin_ok", "visit", v.id, {});
+    audit(req.user, "visit.checkin_ok", "visit", v.id, { visitType: v.visit_type });
     res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), access });
   });
 
@@ -453,8 +507,12 @@ export function createApiRouter({ deviceHub }) {
     if (v.status !== "inspecting") {
       return res.status(400).json({ error: `当前状态不可安检: ${v.status}` });
     }
+    const profile = getVisitProfile(v.visit_type || "carrier");
     const checklist = req.body?.checklist || {};
-    const pass = req.body?.pass !== false && Object.values(checklist).every(Boolean);
+    const requiredKeys = profile.inspectChecklist.map((c) => c.key);
+    const pass =
+      req.body?.pass !== false &&
+      requiredKeys.every((k) => checklist[k] === true);
     const now = new Date().toISOString();
     if (!pass) {
       db.prepare(
@@ -480,7 +538,7 @@ export function createApiRouter({ deviceHub }) {
       deviceResult = { ok: false, error: String(e.message || e), note: "设备预留层失败，业务状态已入场" };
     }
 
-    audit(req.user, "visit.admit", "visit", v.id, { deviceResult });
+    audit(req.user, "visit.admit", "visit", v.id, { deviceResult, visitType: v.visit_type });
     res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), deviceResult });
   });
 
@@ -491,39 +549,39 @@ export function createApiRouter({ deviceHub }) {
       return res.status(400).json({ error: `当前状态不可离场: ${v.status}` });
     }
 
-    const steps = {
-      loadDone: !!req.body?.loadDone,
-      inventoryDone: !!req.body?.inventoryDone,
-      safetySigned: !!req.body?.safetySigned,
-      gateCheckout: !!req.body?.gateCheckout,
+    const visitType = v.visit_type || "carrier";
+    const selectedOptions = safeJson(v.selected_options) || [];
+    const { required, missing, steps } = missingDepartSteps(visitType, selectedOptions, {
+      ...(req.body || {}),
       ...(req.body?.steps || {}),
-    };
-    const required = ["loadDone", "inventoryDone", "safetySigned", "gateCheckout"];
-    const missing = required.filter((k) => !steps[k]);
+    });
     const now = new Date().toISOString();
 
     if (missing.length) {
       db.prepare(
         `UPDATE visits SET status = 'departing', departure_json = ?, updated_at = ? WHERE id = ?`
-      ).run(JSON.stringify({ steps, missing, at: now }), now, v.id);
+      ).run(JSON.stringify({ steps, missing, required, at: now }), now, v.id);
       return res.json({
         ok: false,
         missing,
+        required,
         visit: enrichVisit(getVisit(v.id)),
-        message: "离场收口未完成",
+        message: "离场收口未完成（含已勾选的可选步骤）",
       });
     }
 
     let weight = null;
-    try {
-      weight = await deviceHub.readWeight("scale-1");
-    } catch {
-      weight = null;
+    if (needsWeighOnDepart(visitType, selectedOptions)) {
+      try {
+        weight = await deviceHub.readWeight("scale-1");
+      } catch {
+        weight = null;
+      }
     }
 
     db.prepare(
       `UPDATE visits SET status = 'completed', departure_json = ?, checkout_at = ?, updated_at = ? WHERE id = ?`
-    ).run(JSON.stringify({ steps, weight, at: now }), now, now, v.id);
+    ).run(JSON.stringify({ steps, weight, selectedOptions, at: now }), now, now, v.id);
 
     let deviceResult = null;
     try {
@@ -536,10 +594,9 @@ export function createApiRouter({ deviceHub }) {
       deviceResult = { ok: false, error: String(e.message || e) };
     }
 
-    audit(req.user, "visit.depart", "visit", v.id, { steps, weight, deviceResult });
+    audit(req.user, "visit.depart", "visit", v.id, { steps, weight, deviceResult, visitType });
     res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), deviceResult, weight });
   });
-
   router.post("/visits/:id/exception", auth, role("gate", "ehs", "admin"), async (req, res) => {
     const v = getVisit(req.params.id);
     if (!v) return res.status(404).json({ error: "不存在" });
@@ -655,11 +712,17 @@ function getVisit(id) {
 
 function enrichVisit(v) {
   if (!v) return null;
+  const selectedOptions = safeJson(v.selected_options) || [];
+  const visitType = v.visit_type || "carrier";
   return {
     ...v,
+    visit_type: visitType,
+    visit_type_label: getVisitProfile(visitType).label,
+    selected_options: selectedOptions,
     block_reasons: safeJson(v.block_reasons),
     inspection: safeJson(v.inspection_json),
     departure: safeJson(v.departure_json),
     exception: safeJson(v.exception_note),
+    depart_steps: resolveDepartSteps(visitType, selectedOptions),
   };
 }

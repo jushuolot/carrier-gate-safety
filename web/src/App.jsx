@@ -9,17 +9,26 @@ import DriverVisit from "./pages/driver/DriverVisit";
 import AdminShell from "./pages/admin/AdminShell";
 import Dashboard from "./pages/admin/Dashboard";
 import Visits from "./pages/admin/Visits";
-import GateConsole from "./pages/admin/GateConsole";
 import DocumentsPage from "./pages/admin/DocumentsPage";
 import DevicesPage from "./pages/admin/DevicesPage";
 import AuditPage from "./pages/admin/AuditPage";
 import MastersPage from "./pages/admin/MastersPage";
+import GateShell from "./pages/gate/GateShell";
+import GateConsole from "./pages/gate/GateConsole";
+import GateOnsite from "./pages/gate/GateOnsite";
+
+function homeFor(user) {
+  if (!user) return "/";
+  if (user.role === "driver") return "/driver";
+  if (user.role === "gate") return "/gate";
+  return "/admin";
+}
 
 function RequireAuth({ roles, children }) {
   const user = getUser();
   if (!user) return <Navigate to="/login" replace />;
   if (roles && !roles.includes(user.role) && user.role !== "admin") {
-    return <Navigate to="/" replace />;
+    return <Navigate to={homeFor(user)} replace />;
   }
   return children;
 }
@@ -64,16 +73,27 @@ export default function App() {
       />
 
       <Route
+        path="/gate"
+        element={
+          <RequireAuth roles={["gate", "admin", "ehs"]}>
+            <GateShell />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<GateConsole />} />
+        <Route path="onsite" element={<GateOnsite />} />
+      </Route>
+
+      <Route
         path="/admin"
         element={
-          <RequireAuth roles={["admin", "ehs", "gate", "carrier_admin"]}>
+          <RequireAuth roles={["admin", "ehs", "carrier_admin"]}>
             <AdminShell />
           </RequireAuth>
         }
       >
         <Route index element={<Dashboard />} />
         <Route path="visits" element={<Visits />} />
-        <Route path="gate" element={<GateConsole />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="devices" element={<DevicesPage />} />
         <Route path="masters" element={<MastersPage />} />

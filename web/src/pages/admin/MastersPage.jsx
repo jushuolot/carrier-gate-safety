@@ -17,6 +17,7 @@ export default function MastersPage() {
   return (
     <div>
       <h2 style={{ marginTop: 0 }}>主数据 · 组织 / 人 / 车</h2>
+      <p className="muted">档案维护与查询。门岗放行不改主数据，只读拦截结果。</p>
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
         <div className="card">
           <strong>承运商</strong>

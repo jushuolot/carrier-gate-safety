@@ -1,20 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 
-const CHECKLIST = [
-  { key: "ppe", label: "PPE 佩戴合格（安全帽/反光衣）" },
-  { key: "vehicle", label: "车辆外观/轮胎检查合格" },
-  { key: "docs", label: "纸质证件与系统一致" },
-  { key: "hazard", label: "无泄漏/无危险品违规" },
-];
-
 export default function GateConsole() {
   const [queue, setQueue] = useState([]);
   const [selected, setSelected] = useState(null);
   const [access, setAccess] = useState(null);
-  const [checks, setChecks] = useState(
-    Object.fromEntries(CHECKLIST.map((c) => [c.key, true]))
-  );
+  const [checklistDef, setChecklistDef] = useState([]);
+  const [checks, setChecks] = useState({});
   const [msg, setMsg] = useState("");
   const [plate, setPlate] = useState("沪A12345");
 
@@ -32,6 +24,9 @@ export default function GateConsole() {
     const data = await api(`/visits/${id}`);
     setSelected(data.visit);
     setAccess(data.access);
+    const list = data.inspectChecklist || [];
+    setChecklistDef(list);
+    setChecks(Object.fromEntries(list.map((c) => [c.key, true])));
   }
 
   async function inspect(pass) {
@@ -86,14 +81,15 @@ export default function GateConsole() {
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>门岗核验台</h2>
+      <h2 style={{ marginTop: 0 }}>待办队列 · 放行</h2>
+      <p className="muted">只处理「待准入 / 安检中」。历史台账、证件催办、主数据请走管理后台。</p>
 
       <div className="card" style={{ marginBottom: 12 }}>
-        <strong>车牌识别联调（预留）</strong>
+        <strong>当班设备快操</strong>
         <div className="row" style={{ marginTop: 8 }}>
           <input value={plate} onChange={(e) => setPlate(e.target.value)} />
           <button className="btn" type="button" onClick={simulateLpr}>
-            模拟 LPR 抓拍
+            LPR 抓拍匹配
           </button>
         </div>
       </div>
@@ -104,18 +100,24 @@ export default function GateConsole() {
           <table className="table">
             <thead>
               <tr>
+                <th>类型</th>
                 <th>状态</th>
-                <th>车牌</th>
-                <th>司机</th>
+                <th>对象</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {queue.map((v) => (
                 <tr key={v.id}>
+                  <td>
+                    <span className="pill">{v.visit_type_label || v.visit_type || "承运"}</span>
+                  </td>
                   <td>{v.status}</td>
-                  <td>{v.plate_no}</td>
-                  <td>{v.driver_name}</td>
+                  <td>
+                    {v.visit_type === "self_pickup"
+                      ? `${v.customer_name || "-"} / ${v.pickup_ref || "-"}`
+                      : `${v.plate_no} · ${v.driver_name}`}
+                  </td>
                   <td>
                     <button className="btn" type="button" onClick={() => openVisit(v.id)}>
                       打开
@@ -126,7 +128,7 @@ export default function GateConsole() {
               {!queue.length && (
                 <tr>
                   <td colSpan={4} className="muted">
-                    暂无待安检/待准入单据。请司机端先创建预约并报到。
+                    暂无待安检/待准入单据。请司机端或自提客户先创建预约并报到。
                   </td>
                 </tr>
               )}
@@ -140,11 +142,23 @@ export default function GateConsole() {
           {selected && (
             <>
               <p>
-                {selected.plate_no} · {selected.driver_name} · {selected.carrier_name}
+                <span className="pill">{selected.visit_type_label || selected.visit_type}</span>{" "}
+                {selected.visit_type === "self_pickup" ? (
+                  <>
+                    {selected.customer_name} · 提货单 {selected.pickup_ref}
+                  </>
+                ) : (
+                  <>
+                    {selected.plate_no} · {selected.driver_name} · {selected.carrier_name}
+                  </>
+                )}
               </p>
               <p>
                 状态 <span className="pill">{selected.status}</span>
               </p>
+              {!!selected.selected_options?.length && (
+                <p className="muted">本单可选步骤：{selected.selected_options.join("、")}</p>
+              )}
               {access && (
                 <div className="light" style={{ marginBottom: 10 }}>
                   <span className="pill">
@@ -155,6 +169,7 @@ export default function GateConsole() {
                   </span>
                 </div>
               )}
+              {access?.note && <p className="muted">{access.note}</p>}
               {access && !access.allowed && (
                 <ul>
                   {access.reasons.map((r, i) => (
@@ -165,7 +180,7 @@ export default function GateConsole() {
 
               {selected.status === "inspecting" && (
                 <>
-                  {CHECKLIST.map((c) => (
+                  {checklistDef.map((c) => (
                     <label key={c.key} style={{ display: "block", marginTop: 6 }}>
                       <input
                         type="checkbox"

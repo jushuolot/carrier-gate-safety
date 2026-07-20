@@ -5,6 +5,7 @@ import { api, setSession } from "../api";
 const PRESETS = {
   driver: { phone: "13900000001", password: "driver123", tip: "首次司机（需培训）" },
   driver2: { phone: "13900000002", password: "driver123", tip: "已准入司机" },
+  pickup: { phone: "13700000001", password: "pickup123", tip: "客户自提" },
   gate: { phone: "13800000002", password: "gate123", tip: "门岗" },
   ehs: { phone: "13800000001", password: "ehs123", tip: "EHS" },
   admin: { phone: "13800000000", password: "admin123", tip: "管理员" },
@@ -33,7 +34,8 @@ export default function Login() {
         body: { phone, password },
       });
       setSession(data.token, data.user);
-      nav(data.user.role === "driver" ? "/driver" : "/admin");
+      const role = data.user.role;
+      nav(role === "driver" ? "/driver" : role === "gate" ? "/gate" : "/admin");
     } catch (ex) {
       setErr(ex.message);
     } finally {

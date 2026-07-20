@@ -37,27 +37,39 @@ db.prepare(`INSERT INTO sites (id, name, address) VALUES (?, ?, ?)`).run(
 );
 
 const carrierId = "carrier-1";
+const carrierSelf = "carrier-self";
 db.prepare(
   `INSERT INTO carriers (id, name, credit_code, status, risk_score, created_at) VALUES (?, ?, ?, ?, ?, ?)`
 ).run(carrierId, "示例物流有限公司", "91310000MA1XXXXX1X", "active", 0, now);
+db.prepare(
+  `INSERT INTO carriers (id, name, credit_code, status, risk_score, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+).run(carrierSelf, "客户自提通道", "SELF-PICKUP", "active", 0, now);
 
 const driverNew = "driver-new";
 const driverOk = "driver-ok";
+const driverPickup = "driver-pickup";
 db.prepare(
   `INSERT INTO drivers (id, carrier_id, name, phone, id_masked, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 ).run(driverNew, carrierId, "新司机·王强", "13900000001", "310***2001", "active", now);
 db.prepare(
   `INSERT INTO drivers (id, carrier_id, name, phone, id_masked, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 ).run(driverOk, carrierId, "熟手·李明", "13900000002", "310***2002", "active", now);
+db.prepare(
+  `INSERT INTO drivers (id, carrier_id, name, phone, id_masked, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+).run(driverPickup, carrierSelf, "自提客户（通用）", "13700000001", "310***9001", "active", now);
 
 const veh1 = "veh-1";
 const veh2 = "veh-2";
+const vehPickup = "veh-pickup";
 db.prepare(
   `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`
 ).run(veh1, carrierId, "沪A12345", "重型厢式货车", "active", now);
 db.prepare(
   `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`
 ).run(veh2, carrierId, "沪B67890", "重型厢式货车", "active", now);
+db.prepare(
+  `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+).run(vehPickup, carrierSelf, "沪C88888", "小型客车/自提", "active", now);
 
 const users = [
   ["u-admin", "13800000000", "系统管理员", "admin123", "admin", null, null],
@@ -66,6 +78,7 @@ const users = [
   ["u-carrier", "13800000003", "承运商管理员", "carrier123", "carrier_admin", carrierId, null],
   ["u-d1", "13900000001", "新司机·王强", "driver123", "driver", carrierId, driverNew],
   ["u-d2", "13900000002", "熟手·李明", "driver123", "driver", carrierId, driverOk],
+  ["u-pickup", "13700000001", "自提客户·陈女士", "pickup123", "driver", carrierSelf, driverPickup],
 ];
 
 const insUser = db.prepare(
@@ -172,4 +185,5 @@ db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
 console.log("Seed OK");
 console.log("Site:", siteId);
 console.log("Drivers: 13900000001 (首次) / 13900000002 (已准入)");
+console.log("Self-pickup: 13700000001 / pickup123");
 console.log("Gate: 13800000002 / gate123");

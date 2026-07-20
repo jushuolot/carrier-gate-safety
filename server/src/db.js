@@ -161,4 +161,17 @@ export function migrate() {
       value TEXT NOT NULL
     );
   `);
+
+  // 增量列（已有库可重复执行）
+  const visitCols = db.prepare(`PRAGMA table_info(visits)`).all().map((c) => c.name);
+  const addCol = (name, ddl) => {
+    if (!visitCols.includes(name)) {
+      db.exec(`ALTER TABLE visits ADD COLUMN ${ddl}`);
+    }
+  };
+  addCol("visit_type", "visit_type TEXT NOT NULL DEFAULT 'carrier'");
+  addCol("selected_options", "selected_options TEXT");
+  addCol("customer_name", "customer_name TEXT");
+  addCol("customer_phone", "customer_phone TEXT");
+  addCol("pickup_ref", "pickup_ref TEXT");
 }

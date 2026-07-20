@@ -2,10 +2,6 @@ import { Outlet, Navigate } from "react-router-dom";
 import { getUser } from "../../api";
 import { LogoutButton, NavLink } from "../../components";
 
-/**
- * 管理后台：规则、台账、资质、设备与审计
- * 不做当班放行（放行在 /gate）
- */
 export default function AdminShell() {
   const user = getUser();
   if (!user) return <Navigate to="/login?role=admin" replace />;
@@ -17,10 +13,14 @@ export default function AdminShell() {
   return (
     <div className="layout">
       <aside className="side">
-        <h1>管理后台</h1>
-        <p style={{ fontSize: 12, color: "#829ab1", margin: "0 0 14px", padding: "0 12px" }}>
-          治理 · 台账 · 资质 · 审计
-        </p>
+        <div className="brand">
+          <div className="brand-mark" aria-hidden />
+          <div className="brand-text">
+            <strong>Gate Safety</strong>
+            <span>Admin Control</span>
+          </div>
+        </div>
+        <p className="side-caption">Governance</p>
         <NavLink to="/admin">运营看板</NavLink>
         <NavLink to="/admin/visits">到离场台账</NavLink>
         {!isCarrier && <NavLink to="/admin/documents">证件到期</NavLink>}
@@ -29,19 +29,23 @@ export default function AdminShell() {
         {isOps && <NavLink to="/admin/audit">审计日志</NavLink>}
         {isOps && (
           <>
-            <div style={{ height: 12 }} />
-            <NavLink to="/gate">督导 · 门岗作业台</NavLink>
+            <p className="side-caption" style={{ marginTop: 16 }}>
+              Supervise
+            </p>
+            <NavLink to="/gate">门岗作业台</NavLink>
           </>
         )}
-        <div style={{ marginTop: 24, fontSize: 12, color: "#829ab1", padding: "0 12px" }}>
-          {user.name} · {roleLabel(user.role)}
+        <div className="side-meta">
+          {user.name}
+          <br />
+          {roleLabel(user.role)}
         </div>
       </aside>
       <main className="main">
         <div className="topbar">
           <div>
-            <strong>华东一号仓 · 管理域</strong>
-            <span className="muted"> · 现场放行请使用门岗作业台</span>
+            <strong>Site · 华东一号仓</strong>
+            <span className="muted"> · 管理域 · 放行请使用门岗作业台</span>
           </div>
           <LogoutButton />
         </div>
@@ -54,9 +58,9 @@ export default function AdminShell() {
 function roleLabel(role) {
   return (
     {
-      admin: "系统管理员",
+      admin: "System Admin",
       ehs: "EHS",
-      carrier_admin: "承运商管理员",
+      carrier_admin: "Carrier Admin",
     }[role] || role
   );
 }

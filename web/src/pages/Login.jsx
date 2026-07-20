@@ -34,8 +34,8 @@ export default function Login() {
         body: { phone, password },
       });
       setSession(data.token, data.user);
-      const role = data.user.role;
-      nav(role === "driver" ? "/driver" : role === "gate" ? "/gate" : "/admin");
+      const r = data.user.role;
+      nav(r === "driver" ? "/driver" : r === "gate" ? "/gate" : "/admin");
     } catch (ex) {
       setErr(ex.message);
     } finally {
@@ -44,17 +44,21 @@ export default function Login() {
   }
 
   return (
-    <div className="portal" style={{ maxWidth: 480 }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>登录</h1>
+    <div className="portal" style={{ maxWidth: 440 }}>
+      <div className="portal-kicker">
+        <span className="mark" aria-hidden />
+        Secure sign-in
+      </div>
+      <h1 style={{ fontSize: "1.75rem", marginBottom: 8 }}>登录工作台</h1>
       <p className="muted">演示账号可一点填入 · 当前建议：{preset.tip}</p>
 
-      <form className="card" style={{ marginTop: 16 }} onSubmit={submit}>
+      <form className="card" style={{ marginTop: 20 }} onSubmit={submit}>
         <div className="field">
-          <label>手机号</label>
+          <label>Mobile</label>
           <input value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="field">
-          <label>密码</label>
+          <label>Password</label>
           <input
             type="password"
             value={password}
@@ -63,7 +67,7 @@ export default function Login() {
         </div>
         {err && <p style={{ color: "var(--danger)" }}>{err}</p>}
         <button className="btn primary" disabled={loading} type="submit">
-          {loading ? "登录中…" : "进入系统"}
+          {loading ? "Signing in…" : "进入系统"}
         </button>
       </form>
 

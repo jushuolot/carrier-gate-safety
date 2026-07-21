@@ -62,19 +62,21 @@ export default function Dashboard() {
   if (!dash) return <p className="muted">加载中…</p>;
 
   return (
-    <div>
-      <h2 style={{ marginTop: 0 }}>运营看板</h2>
-      <p className="muted">
-        智能场站：风险 · 时段 · 双签 · SLA。
-        {user?.role === "admin" || user?.role === "ehs" ? (
-          <>
-            {" "}
-            当班放行请到 <Link to="/gate">门岗指挥台</Link>。
-          </>
-        ) : (
-          " 现场放行由门岗处理。"
-        )}
-      </p>
+    <div className="page-block">
+      <header className="page-head">
+        <h2>运营看板</h2>
+        <p className="muted">
+          智能场站：风险 · 时段 · 双签 · SLA。
+          {user?.role === "admin" || user?.role === "ehs" ? (
+            <>
+              {" "}
+              当班放行请到 <Link to="/gate">门岗指挥台</Link>。
+            </>
+          ) : (
+            " 现场放行由门岗处理。"
+          )}
+        </p>
+      </header>
 
       {msg && <div className="gate-toast ok">{msg}</div>}
 
@@ -146,35 +148,20 @@ export default function Dashboard() {
         <div className="card">
           <strong>近期证件风险</strong>
           <p className="muted">后台催办承运商补证；门岗只在放行时看拦截结果。</p>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>证件</th>
-                <th>主体</th>
-                <th>到期</th>
-              </tr>
-            </thead>
-            <tbody>
-              {expiring.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.label}</td>
-                  <td className="muted">
+          <ul className="entity-list">
+            {expiring.map((d) => (
+              <li key={d.id} className="entity-row">
+                <div className="entity-main">
+                  <div className="entity-primary">{d.label}</div>
+                  <div className="entity-secondary">
                     {d.subject_type}/{d.subject_id}
-                  </td>
-                  <td>
-                    <span className={`pill ${d.expired ? "bad" : "warn"}`}>{d.expire_at}</span>
-                  </td>
-                </tr>
-              ))}
-              {!expiring.length && (
-                <tr>
-                  <td colSpan={3} className="muted">
-                    近 14 天无到期预警
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+                <span className={`pill ${d.expired ? "bad" : "warn"}`}>{d.expire_at}</span>
+              </li>
+            ))}
+            {!expiring.length && <li className="muted">近 14 天无到期预警</li>}
+          </ul>
           <Link to="/admin/documents">查看全部到期 →</Link>
         </div>
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, setSession } from "../api";
 
 const PRESETS = {
@@ -43,51 +43,58 @@ export default function Login() {
   }
 
   return (
-    <div className="stage">
-      <div className="stage-glow stage-glow-a" aria-hidden />
-      <div className="stage-glow stage-glow-b" aria-hidden />
-      <div className="stage-grid" aria-hidden />
+    <div className="stage stage-login">
+      <div className="stage-photo" aria-hidden />
+      <div className="stage-veil" aria-hidden />
 
-      <div className="portal portal-login">
-        <div className="portal-kicker" style={{ marginBottom: 16 }}>
-          <span className="stage-logo-mark" style={{ width: 18, height: 18, borderRadius: 5 }} />
-          Sign in
-        </div>
-        <h1 style={{ fontSize: "2.4rem", marginBottom: 8 }}>欢迎回来</h1>
-        <p className="muted" style={{ marginBottom: 28, fontSize: 16 }}>
-          {preset.tip}
-        </p>
+      <header className="stage-nav">
+        <Link className="stage-logo" to="/">
+          <span className="stage-logo-mark" aria-hidden />
+          <span>Gate Safety</span>
+        </Link>
+        <Link className="stage-nav-link" to="/">
+          返回
+        </Link>
+      </header>
 
-        <form className="card" style={{ borderRadius: 22, padding: 24 }} onSubmit={submit}>
+      <div className="login-panel">
+        <p className="login-kicker">登录</p>
+        <h1 className="login-title">承运商安全</h1>
+        <p className="login-sub">{preset.tip}</p>
+
+        <form className="login-form" onSubmit={submit}>
           <div className="field">
-            <label>手机号</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <label htmlFor="phone">手机号</label>
+            <input
+              id="phone"
+              inputMode="tel"
+              autoComplete="username"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
           </div>
           <div className="field">
-            <label>密码</label>
+            <label htmlFor="password">密码</label>
             <input
+              id="password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          {err && <p style={{ color: "#ff8a80", fontSize: 14 }}>{err}</p>}
-          <button
-            className="btn primary"
-            disabled={loading}
-            type="submit"
-            style={{ width: "100%", marginTop: 8 }}
-          >
-            {loading ? "登录中…" : "继续"}
+          {err && <p className="login-err">{err}</p>}
+          <button className="btn primary btn-block" disabled={loading} type="submit">
+            {loading ? "登录中…" : "进入系统"}
           </button>
         </form>
 
-        <div className="row" style={{ marginTop: 18 }}>
+        <div className="login-presets" aria-label="演示账号">
           {tips.map(([k, v]) => (
             <button
               key={k}
               type="button"
-              className="btn"
+              className={`chip ${phone === v.phone ? "on" : ""}`}
               onClick={() => {
                 setPhone(v.phone);
                 setPassword(v.password);

@@ -109,10 +109,11 @@ export default function DriverVisit() {
 
   return (
     <div className="h5">
-      <Link to="/driver" className="muted">
+      <Link to="/driver" className="h5-back">
         ← 返回
       </Link>
-      <h2>到离场报到</h2>
+      <h1 className="h5-title">到离场报到</h1>
+      <p className="h5-sub">预约入场 · 报到安检 · 离场收口</p>
 
       <div className="card">
         <div className="field">

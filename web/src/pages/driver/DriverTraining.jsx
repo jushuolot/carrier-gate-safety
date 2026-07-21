@@ -62,12 +62,12 @@ export default function DriverTraining() {
 
   return (
     <div className="h5">
-      <Link to="/driver" className="muted">
+      <Link to="/driver" className="h5-back">
         ← 返回
       </Link>
-      <h2>{course.title}</h2>
-      <p className="muted">
-        最短观看 {course.min_watch_seconds}s · 及格线 {course.pass_score} 分（防快进：需点击累计观看）
+      <h1 className="h5-title">{course.title}</h1>
+      <p className="h5-sub">
+        最短观看 {course.min_watch_seconds}s · 及格线 {course.pass_score} 分
       </p>
 
       <div className="card">

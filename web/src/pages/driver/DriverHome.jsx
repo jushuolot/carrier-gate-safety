@@ -3,6 +3,24 @@ import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
 import { LogoutButton } from "../../components";
 
+const ACTIONS = [
+  {
+    to: "/driver/training",
+    title: "安全培训 / 答题",
+    desc: "首次或复训必做",
+  },
+  {
+    to: "/driver/docs",
+    title: "资质上传 · OCR",
+    desc: "驾驶证 / 资格证到期日",
+  },
+  {
+    to: "/driver/visit",
+    title: "到离场报到",
+    desc: "预约、报到、离场收口",
+  },
+];
+
 export default function DriverHome() {
   const user = getUser();
   const [status, setStatus] = useState(null);
@@ -33,63 +51,87 @@ export default function DriverHome() {
     })();
   }, [user]);
 
+  const lights = [
+    {
+      key: "training",
+      label: "安全培训",
+      ok: !!access?.lights?.training,
+      okText: "有效",
+      badText: "未完成",
+    },
+    {
+      key: "documents",
+      label: "资质证件",
+      ok: !!access?.lights?.documents,
+      okText: "齐全",
+      badText: "待补",
+    },
+    {
+      key: "subject",
+      label: "主体状态",
+      ok: access?.lights?.subject !== false,
+      okText: "正常",
+      badText: "异常",
+    },
+  ];
+
   return (
     <div className="h5">
-      <div className="row" style={{ justifyContent: "space-between" }}>
+      <header className="h5-head">
         <div>
-          <div className="muted">司机端</div>
-          <h2 style={{ margin: "4px 0 0" }}>{user.name}</h2>
+          <p className="h5-kicker">司机端</p>
+          <h1 className="h5-name">{user.name}</h1>
         </div>
         <LogoutButton />
-      </div>
+      </header>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="muted">准入三灯</div>
-        <div className="light" style={{ marginTop: 10 }}>
-          <span className="pill">
-            <i className={`dot ${access?.lights?.training ? "on" : "off"}`} />
-            培训 {access?.lights?.training ? "有效" : "未完成"}
-          </span>
-          <span className="pill">
-            <i className={`dot ${access?.lights?.documents ? "on" : "off"}`} />
-            证件 {access?.lights?.documents ? "齐全" : "待补"}
-          </span>
-          <span className="pill">
-            <i className={`dot ${access?.lights?.subject ? "on" : "off"}`} />
-            主体正常
-          </span>
+      <section className="status-panel" aria-label="准入状态">
+        <div className="status-panel-top">
+          <h2>准入三灯</h2>
+          {access && (
+            <span className={`status-flag ${access.allowed ? "ok" : "bad"}`}>
+              {access.allowed ? "可入场" : "暂不可入"}
+            </span>
+          )}
         </div>
+
+        <ul className="status-list">
+          {lights.map((l) => (
+            <li key={l.key} className={l.ok ? "ok" : "bad"}>
+              <i className="status-dot" aria-hidden />
+              <span className="status-label">{l.label}</span>
+              <span className="status-val">{l.ok ? l.okText : l.badText}</span>
+            </li>
+          ))}
+        </ul>
+
         {access && !access.allowed && (
-          <ul style={{ marginTop: 12, paddingLeft: 18 }}>
+          <ul className="status-reasons">
             {access.reasons.map((r, i) => (
-              <li key={i} className="muted">
-                {r.message}
-              </li>
+              <li key={i}>{r.message}</li>
             ))}
           </ul>
         )}
         {status?.record?.valid_until && (
-          <p className="muted" style={{ marginTop: 10 }}>
-            培训有效至 {status.record.valid_until}
-          </p>
+          <p className="status-note">培训有效至 {status.record.valid_until}</p>
         )}
-      </div>
+      </section>
 
-      <div className="grid" style={{ marginTop: 12 }}>
-        <Link className="card" to="/driver/training">
-          <strong>安全培训 / 答题</strong>
-          <p className="muted">首次或复训必做</p>
-        </Link>
-        <Link className="card" to="/driver/docs">
-          <strong>资质上传 · OCR</strong>
-          <p className="muted">驾驶证 / 资格证到期日</p>
-        </Link>
-        <Link className="card" to="/driver/visit">
-          <strong>到离场报到</strong>
-          <p className="muted">预约、报到、离场收口</p>
-        </Link>
-      </div>
-      {err && <p style={{ color: "var(--danger)" }}>{err}</p>}
+      <nav className="action-list" aria-label="功能">
+        {ACTIONS.map((a) => (
+          <Link key={a.to} className="action-row" to={a.to}>
+            <span>
+              <strong>{a.title}</strong>
+              <span className="muted">{a.desc}</span>
+            </span>
+            <span className="action-go" aria-hidden>
+              →
+            </span>
+          </Link>
+        ))}
+      </nav>
+
+      {err && <p className="form-err">{err}</p>}
     </div>
   );
 }

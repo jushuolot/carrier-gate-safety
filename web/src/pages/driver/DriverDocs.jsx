@@ -49,11 +49,11 @@ export default function DriverDocs() {
 
   return (
     <div className="h5">
-      <Link to="/driver" className="muted">
+      <Link to="/driver" className="h5-back">
         ← 返回
       </Link>
-      <h2>资质上传 · OCR</h2>
-      <p className="muted">拍摄/上传后自动读取到期日（当前为模拟 OCR，可切换到期天数演示拦截）</p>
+      <h1 className="h5-title">资质上传</h1>
+      <p className="h5-sub">拍摄/上传后自动读取到期日（模拟 OCR）</p>
 
       <div className="card">
         <div className="field">

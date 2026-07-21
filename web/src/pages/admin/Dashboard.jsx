@@ -56,7 +56,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 16 }}>
+      <div className="grid grid-2" style={{ marginTop: 16 }}>
         <div className="card">
           <strong>近期证件风险</strong>
           <p className="muted">后台催办承运商补证；门岗只在放行时看拦截结果。</p>

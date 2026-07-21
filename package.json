@@ -13,7 +13,10 @@
     "dev:web": "npm run dev -w web",
     "seed": "npm run seed -w server",
     "build": "npm run build -w web",
-    "start": "npm run start -w server"
+    "start": "npm run start -w server",
+    "selfcheck": "node scripts/selfcheck-mock.mjs",
+    "selfcheck:server": "node scripts/selfcheck-server.mjs",
+    "selfcheck:all": "node scripts/selfcheck-mock.mjs && node scripts/selfcheck-server.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { RiskPill } from "../../components/PassCode";
+import { useI18n } from "../../i18n/I18nContext";
 
 const STATUS_LABEL = {
   access_pending: "待准入",
@@ -11,6 +12,7 @@ const STATUS_LABEL = {
 };
 
 export default function GateConsole() {
+  const { t } = useI18n();
   const [queue, setQueue] = useState([]);
   const [kpi, setKpi] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -185,8 +187,8 @@ export default function GateConsole() {
   return (
     <div className="gate-page">
       <header className="gate-head page-head">
-        <h2>门岗指挥台</h2>
-        <p className="muted">风险排序 · 通行码 · 证据放行</p>
+        <h2>{t("gateConsole")}</h2>
+        <p className="muted">{t("gateConsoleSub")}</p>
       </header>
 
       {kpi && (

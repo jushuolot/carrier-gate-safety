@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { useI18n } from "../../i18n/I18nContext";
 
 function EntityList({ title, items, empty = "暂无数据" }) {
   return (
@@ -32,6 +33,7 @@ function EntityList({ title, items, empty = "暂无数据" }) {
 }
 
 export default function MastersPage() {
+  const { t } = useI18n();
   const [carriers, setCarriers] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -47,8 +49,8 @@ export default function MastersPage() {
   return (
     <div className="page-block">
       <header className="page-head">
-        <h2>主数据</h2>
-        <p className="muted">组织 / 司机 / 车辆档案。门岗放行只读拦截结果，不在此改主数据。</p>
+        <h2>{t("pageMasters")}</h2>
+        <p className="muted">Org / driver / vehicle</p>
       </header>
 
       <div className="masters-grid">

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { RiskPill } from "../../components/PassCode";
+import { useI18n } from "../../i18n/I18nContext";
 
 export default function GateOnsite() {
+  const { t } = useI18n();
   const [items, setItems] = useState([]);
   const [warn, setWarn] = useState(90);
   const [err, setErr] = useState("");
@@ -55,8 +57,8 @@ export default function GateOnsite() {
   return (
     <div className="gate-page">
       <header className="gate-head page-head">
-        <h2>在场 / 离场双签</h2>
-        <p className="muted">SLA {warn} 分钟超时高亮 · 离场须司机+门岗双签后扫码确认</p>
+        <h2>{t("gateOnsite")}</h2>
+        <p className="muted">{t("gateOnsiteSub").replace("{n}", String(warn))}</p>
       </header>
 
       {err && <div className="gate-toast bad">{err}</div>}

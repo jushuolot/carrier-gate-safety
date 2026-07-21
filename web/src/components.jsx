@@ -1,8 +1,10 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { clearSession } from "./api";
+import { useI18n } from "./i18n/I18nContext";
 
 export function LogoutButton() {
   const nav = useNavigate();
+  const { t } = useI18n();
   return (
     <button
       className="btn btn-ghost"
@@ -12,7 +14,7 @@ export function LogoutButton() {
         nav("/");
       }}
     >
-      退出
+      {t("logout")}
     </button>
   );
 }

@@ -1,9 +1,11 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { getUser } from "../../api";
 import { LogoutButton, NavLink } from "../../components";
+import { LangSwitch, useI18n } from "../../i18n/I18nContext";
 
 export default function AdminShell() {
   const user = getUser();
+  const { t } = useI18n();
   if (!user) return <Navigate to="/login?role=admin" replace />;
   if (user.role === "gate") return <Navigate to="/gate" replace />;
 
@@ -16,62 +18,68 @@ export default function AdminShell() {
         <div className="brand">
           <div className="brand-mark" aria-hidden />
           <div className="brand-text">
-            <strong>承运商安全</strong>
-            <span>管理后台</span>
+            <strong>{t("brand")}</strong>
+            <span>{t("brandEn")}</span>
           </div>
         </div>
-        <p className="side-caption">导航</p>
+        <p className="side-caption">{t("nav")}</p>
         <NavLink to="/admin" end>
-          运营看板
+          {t("navDashboard")}
         </NavLink>
-        <NavLink to="/admin/visits">到离场台账</NavLink>
-        {!isCarrier && <NavLink to="/admin/documents">证件到期</NavLink>}
-        <NavLink to="/admin/masters">主数据</NavLink>
-        {isOps && <NavLink to="/admin/devices">设备与对接</NavLink>}
-        {isOps && <NavLink to="/admin/audit">审计日志</NavLink>}
+        <NavLink to="/admin/visits">{t("navVisits")}</NavLink>
+        {!isCarrier && <NavLink to="/admin/documents">{t("navDocuments")}</NavLink>}
+        <NavLink to="/admin/masters">{t("navMasters")}</NavLink>
+        {isOps && <NavLink to="/admin/devices">{t("navDevices")}</NavLink>}
+        {isOps && <NavLink to="/admin/audit">{t("navAudit")}</NavLink>}
         {isOps && (
           <>
-            <p className="side-caption">督导</p>
-            <NavLink to="/gate">门岗作业台</NavLink>
+            <p className="side-caption">{t("navSupervise")}</p>
+            <NavLink to="/gate">{t("navGate")}</NavLink>
           </>
         )}
+        <div className="side-lang">
+          <LangSwitch className="lang-switch-side" />
+        </div>
         <div className="side-meta">
           {user.name}
           <br />
-          {roleLabel(user.role)}
+          {roleLabel(user.role, t)}
         </div>
       </aside>
 
       <main className="main">
         <div className="topbar">
-          <div>
-            <strong className="brand-inline">承运商安全</strong>
-            <span className="muted topbar-site"> · 华东一号仓</span>
+          <div className="topbar-brand">
+            <strong className="brand-inline">{t("brand")}</strong>
+            <span className="muted topbar-site"> · {t("siteLabel")}</span>
           </div>
-          <LogoutButton />
+          <div className="topbar-actions">
+            <LangSwitch className="lang-switch-light desk-lang" />
+            <LogoutButton />
+          </div>
         </div>
         <Outlet />
       </main>
 
-      <nav className="tabbar" aria-label="底部导航">
+      <nav className="tabbar" aria-label="tabs">
         <NavLink to="/admin" end>
-          看板
+          {t("tabDash")}
         </NavLink>
-        <NavLink to="/admin/visits">台账</NavLink>
-        {!isCarrier && <NavLink to="/admin/documents">证件</NavLink>}
-        <NavLink to="/admin/masters">主数据</NavLink>
-        {isOps && <NavLink to="/admin/devices">设备</NavLink>}
+        <NavLink to="/admin/visits">{t("tabVisits")}</NavLink>
+        {!isCarrier && <NavLink to="/admin/documents">{t("tabDocs")}</NavLink>}
+        <NavLink to="/admin/masters">{t("tabMasters")}</NavLink>
+        {isOps && <NavLink to="/admin/devices">{t("tabDevices")}</NavLink>}
       </nav>
     </div>
   );
 }
 
-function roleLabel(role) {
+function roleLabel(role, t) {
   return (
     {
-      admin: "系统管理员",
-      ehs: "EHS 安全员",
-      carrier_admin: "承运商管理员",
+      admin: t("roleAdmin"),
+      ehs: t("roleEhs"),
+      carrier_admin: t("roleCarrier"),
     }[role] || role
   );
 }

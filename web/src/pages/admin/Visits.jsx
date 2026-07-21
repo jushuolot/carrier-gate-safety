@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { useI18n } from "../../i18n/I18nContext";
 
 const STATUS_LABEL = {
   appointed: "已预约",
@@ -42,6 +43,7 @@ function subjectOf(v) {
 }
 
 export default function Visits() {
+  const { t } = useI18n();
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState("");
   const [type, setType] = useState("");
@@ -68,8 +70,8 @@ export default function Visits() {
   return (
     <div className="page-block">
       <header className="page-head">
-        <h2>到离场台账</h2>
-        <p className="muted">按类型 / 车牌 / DN / 归档号检索 · 归档格式 YYYYMMDD_车牌</p>
+        <h2>{t("pageVisits")}</h2>
+        <p className="muted">YYYYMMDD_plate · type / plate / DN / archive</p>
       </header>
 
       <div className="card filters-card">

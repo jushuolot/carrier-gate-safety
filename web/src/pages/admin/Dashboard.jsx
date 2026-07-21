@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
 import { RiskPill } from "../../components/PassCode";
+import { useI18n } from "../../i18n/I18nContext";
 
 export default function Dashboard() {
   const user = getUser();
+  const { t } = useI18n();
   const [dash, setDash] = useState(null);
   const [expiring, setExpiring] = useState([]);
   const [exceptions, setExceptions] = useState([]);
@@ -64,17 +66,14 @@ export default function Dashboard() {
   return (
     <div className="page-block">
       <header className="page-head">
-        <h2>运营看板</h2>
+        <h2>{t("pageDashboard")}</h2>
         <p className="muted">
-          智能场站：风险 · 时段 · 双签 · SLA。
           {user?.role === "admin" || user?.role === "ehs" ? (
             <>
               {" "}
-              当班放行请到 <Link to="/gate">门岗指挥台</Link>。
+              <Link to="/gate">{t("navGate")}</Link>
             </>
-          ) : (
-            " 现场放行由门岗处理。"
-          )}
+          ) : null}
         </p>
       </header>
 

@@ -2,16 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, setSession } from "../api";
 import { isPagesDemo, reclaimDemoStorage } from "../mockApi";
-
-const PRESETS = {
-  driver: { phone: "13900000001", password: "driver123", tip: "首次司机" },
-  driver2: { phone: "13900000002", password: "driver123", tip: "已准入司机" },
-  pickup: { phone: "13700000001", password: "pickup123", tip: "客户自提" },
-  gate: { phone: "13800000002", password: "gate123", tip: "门岗" },
-  ehs: { phone: "13800000001", password: "ehs123", tip: "EHS" },
-  admin: { phone: "13800000000", password: "admin123", tip: "管理员" },
-  carrier: { phone: "13800000003", password: "carrier123", tip: "承运商" },
-};
+import { BrandLockup, LangSwitch, useI18n } from "../i18n/I18nContext";
 
 function isQuotaError(msg = "") {
   return /quota|setItem|Storage|存储/i.test(String(msg));
@@ -20,13 +11,28 @@ function isQuotaError(msg = "") {
 export default function Login() {
   const [params] = useSearchParams();
   const role = params.get("role") || "admin";
+  const { t } = useI18n();
+
+  const PRESETS = useMemo(
+    () => ({
+      driver: { phone: "13900000001", password: "driver123", tipKey: "tipDriver" },
+      driver2: { phone: "13900000002", password: "driver123", tipKey: "tipDriver2" },
+      pickup: { phone: "13700000001", password: "pickup123", tipKey: "tipPickup" },
+      gate: { phone: "13800000002", password: "gate123", tipKey: "tipGate" },
+      ehs: { phone: "13800000001", password: "ehs123", tipKey: "tipEhs" },
+      admin: { phone: "13800000000", password: "admin123", tipKey: "tipAdmin" },
+      carrier: { phone: "13800000003", password: "carrier123", tipKey: "tipCarrier" },
+    }),
+    []
+  );
+
   const preset = PRESETS[role] || PRESETS.admin;
   const [phone, setPhone] = useState(preset.phone);
   const [password, setPassword] = useState(preset.password);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
-  const tips = useMemo(() => Object.entries(PRESETS), []);
+  const tips = useMemo(() => Object.entries(PRESETS), [PRESETS]);
 
   function wipeDemoCache() {
     if (isPagesDemo()) reclaimDemoStorage();
@@ -70,7 +76,7 @@ export default function Login() {
           const r = data.user.role;
           nav(r === "driver" ? "/driver" : r === "gate" ? "/gate" : "/admin");
           return;
-        } catch (ex2) {
+        } catch {
           setErr(
             "本地演示缓存已满。请点下方「清除演示缓存」，或用无痕窗口打开页面后再登录。"
           );
@@ -90,21 +96,24 @@ export default function Login() {
       <header className="stage-nav">
         <Link className="stage-logo" to="/">
           <span className="stage-logo-mark" aria-hidden />
-          <span>Gate Safety</span>
+          <span className="stage-logo-text">{t("brandShort")}</span>
         </Link>
-        <Link className="stage-nav-link" to="/">
-          返回
-        </Link>
+        <div className="stage-nav-right">
+          <LangSwitch className="lang-switch-dark" />
+          <Link className="stage-nav-link" to="/">
+            {t("back")}
+          </Link>
+        </div>
       </header>
 
       <div className="login-panel">
-        <p className="login-kicker">承运商安全</p>
-        <h1 className="login-title">登录</h1>
-        <p className="login-sub">{preset.tip}</p>
+        <BrandLockup variant="hero" compact />
+        <h1 className="login-title">{t("login")}</h1>
+        <p className="login-sub">{t(preset.tipKey)}</p>
 
         <form className="login-form" onSubmit={submit}>
           <div className="field">
-            <label htmlFor="phone">手机号</label>
+            <label htmlFor="phone">{t("phone")}</label>
             <input
               id="phone"
               inputMode="tel"
@@ -114,7 +123,7 @@ export default function Login() {
             />
           </div>
           <div className="field">
-            <label htmlFor="password">密码</label>
+            <label htmlFor="password">{t("password")}</label>
             <input
               id="password"
               type="password"
@@ -125,7 +134,7 @@ export default function Login() {
           </div>
           {err && <p className="login-err">{err}</p>}
           <button className="btn primary btn-block" disabled={loading} type="submit">
-            {loading ? "登录中…" : "继续"}
+            {loading ? "…" : t("loginContinue")}
           </button>
         </form>
 
@@ -141,11 +150,11 @@ export default function Login() {
               window.location.reload();
             }}
           >
-            清除演示缓存并刷新
+            {t("clearCache")}
           </button>
         )}
 
-        <div className="login-presets" aria-label="演示账号">
+        <div className="login-presets" aria-label="demo accounts">
           {tips.map(([k, v]) => (
             <button
               key={k}
@@ -156,7 +165,7 @@ export default function Login() {
                 setPassword(v.password);
               }}
             >
-              {v.tip}
+              {t(v.tipKey)}
             </button>
           ))}
         </div>

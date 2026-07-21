@@ -1,9 +1,11 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { getUser } from "../../api";
 import { LogoutButton, NavLink } from "../../components";
+import { LangSwitch, useI18n } from "../../i18n/I18nContext";
 
 export default function GateShell() {
   const user = getUser();
+  const { t } = useI18n();
   if (!user) return <Navigate to="/login?role=gate" replace />;
 
   return (
@@ -12,45 +14,51 @@ export default function GateShell() {
         <div className="brand">
           <div className="brand-mark" aria-hidden />
           <div className="brand-text">
-            <strong>承运商安全</strong>
-            <span>门岗作业</span>
+            <strong>{t("brand")}</strong>
+            <span>{t("brandEn")}</span>
           </div>
         </div>
-        <p className="side-caption">当班</p>
+        <p className="side-caption">{t("gateOps")}</p>
         <NavLink to="/gate" end>
-          待办队列
+          {t("tabQueueLong")}
         </NavLink>
-        <NavLink to="/gate/onsite">当前在场/签退</NavLink>
+        <NavLink to="/gate/onsite">{t("tabOnsiteLong")}</NavLink>
+        <div className="side-lang">
+          <LangSwitch className="lang-switch-side" />
+        </div>
         <div className="side-meta">
           {user.name}
           <br />
-          门岗班次
+          {t("gateShift")}
         </div>
         {(user.role === "admin" || user.role === "ehs") && (
           <div className="side-extra">
-            <NavLink to="/admin">返回管理后台</NavLink>
+            <NavLink to="/admin">{t("backAdmin")}</NavLink>
           </div>
         )}
       </aside>
 
       <main className="main">
         <div className="topbar">
-          <div>
-            <strong className="brand-inline">承运商安全</strong>
-            <span className="muted topbar-site"> · 一号门</span>
+          <div className="topbar-brand">
+            <strong className="brand-inline">{t("brand")}</strong>
+            <span className="muted topbar-site"> · {t("gateSite")}</span>
           </div>
-          <LogoutButton />
+          <div className="topbar-actions">
+            <LangSwitch className="lang-switch-light desk-lang" />
+            <LogoutButton />
+          </div>
         </div>
         <Outlet />
       </main>
 
-      <nav className="tabbar" aria-label="底部导航">
+      <nav className="tabbar" aria-label="tabs">
         <NavLink to="/gate" end>
-          待办
+          {t("tabQueue")}
         </NavLink>
-        <NavLink to="/gate/onsite">在场/签退</NavLink>
+        <NavLink to="/gate/onsite">{t("tabOnsite")}</NavLink>
         {(user.role === "admin" || user.role === "ehs") && (
-          <NavLink to="/admin">后台</NavLink>
+          <NavLink to="/admin">{t("tabAdmin")}</NavLink>
         )}
       </nav>
     </div>

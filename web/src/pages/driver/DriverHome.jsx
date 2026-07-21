@@ -3,33 +3,35 @@ import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
 import { LogoutButton } from "../../components";
 import { RiskPill } from "../../components/PassCode";
-
-const ACTIONS = [
-  {
-    to: "/driver/training",
-    title: "安全培训 / 答题",
-    desc: "首次或复训必做",
-  },
-  {
-    to: "/driver/docs",
-    title: "资质上传 · OCR",
-    desc: "驾驶证 / 资格证到期日",
-  },
-  {
-    to: "/driver/visit",
-    title: "到离场报到",
-    desc: "约时段 · 通行码 · 离场",
-  },
-];
+import { LangSwitch, useI18n } from "../../i18n/I18nContext";
 
 export default function DriverHome() {
   const user = getUser();
+  const { t } = useI18n();
   const driverId = user?.driver_id;
   const carrierId = user?.carrier_id;
   const [status, setStatus] = useState(null);
   const [access, setAccess] = useState(null);
   const [notes, setNotes] = useState([]);
   const [err, setErr] = useState("");
+
+  const ACTIONS = [
+    {
+      to: "/driver/training",
+      title: t("driverTraining"),
+      desc: t("driverTrainingDesc"),
+    },
+    {
+      to: "/driver/docs",
+      title: t("driverDocs"),
+      desc: t("driverDocsDesc"),
+    },
+    {
+      to: "/driver/visit",
+      title: t("driverVisit"),
+      desc: t("driverVisitDesc"),
+    },
+  ];
 
   useEffect(() => {
     if (!driverId) return;
@@ -64,24 +66,24 @@ export default function DriverHome() {
   const lights = [
     {
       key: "training",
-      label: "安全培训",
+      label: t("lightTraining"),
       ok: !!access?.lights?.training,
-      okText: "有效",
-      badText: "未完成",
+      okText: t("okValid"),
+      badText: t("badTodo"),
     },
     {
       key: "documents",
-      label: "资质证件",
+      label: t("lightDocs"),
       ok: !!access?.lights?.documents,
-      okText: "齐全",
-      badText: "待补",
+      okText: t("okReady"),
+      badText: t("badNeed"),
     },
     {
       key: "subject",
-      label: "主体状态",
+      label: t("lightSubject"),
       ok: access?.lights?.subject !== false,
-      okText: "正常",
-      badText: "异常",
+      okText: t("okNormal"),
+      badText: t("badAbnormal"),
     },
   ];
 
@@ -89,10 +91,15 @@ export default function DriverHome() {
     <div className="h5">
       <header className="h5-head">
         <div>
-          <p className="h5-kicker">司机端</p>
+          <p className="h5-kicker">{t("driverKicker")}</p>
           <h1 className="h5-name">{user.name}</h1>
+          <p className="h5-brand-line">{t("brand")}</p>
+          <p className="h5-brand-en">{t("brandEn")}</p>
         </div>
-        <LogoutButton />
+        <div className="h5-head-actions">
+          <LangSwitch className="lang-switch-light" />
+          <LogoutButton />
+        </div>
       </header>
 
       {notes.length > 0 && (
@@ -110,12 +117,12 @@ export default function DriverHome() {
 
       <section className="status-panel" aria-label="准入状态">
         <div className="status-panel-top">
-          <h2>准入三灯</h2>
+          <h2>{t("accessLights")}</h2>
           <div className="row" style={{ gap: 6 }}>
             {access && <RiskPill level={access.riskLevel} score={access.riskScore} />}
             {access && (
               <span className={`status-flag ${access.allowed ? "ok" : "bad"}`}>
-                {access.allowed ? "可入场" : "暂不可入"}
+                {access.allowed ? t("canEnter") : t("cannotEnter")}
               </span>
             )}
           </div>

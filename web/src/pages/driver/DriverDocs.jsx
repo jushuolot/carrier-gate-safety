@@ -5,6 +5,10 @@ import { api, getUser } from "../../api";
 const DRIVER_DOCS = [
   { type: "driver_license", label: "驾驶证" },
   { type: "qualification", label: "从业资格证" },
+  { type: "id_card", label: "身份证" },
+  { type: "hazmat_permit", label: "危化许可" },
+  { type: "auth_letter", label: "授权委托书" },
+  { type: "delivery_note", label: "提货单/DN" },
 ];
 
 export default function DriverDocs() {
@@ -54,7 +58,7 @@ export default function DriverDocs() {
         ← 返回
       </Link>
       <h1 className="h5-title">资质上传</h1>
-      <p className="h5-sub">拍摄/上传后自动读取到期日（模拟 OCR）</p>
+      <p className="h5-sub">③登记证件 · OCR 自动校验到期日（模拟）</p>
 
       <div className="card">
         <div className="field">

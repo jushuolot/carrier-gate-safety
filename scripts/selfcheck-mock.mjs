@@ -182,12 +182,7 @@ async function main() {
         inspect.deviceResult?.txnId
       );
 
-      // Driver depart
-      const steps = {};
-      for (const s of inspect.visit.depart_steps || detail.departSteps || []) {
-        steps[s.key] = true;
-      }
-      // reload visit for depart_steps
+      // Driver depart prepare + dual checkout
       const after = await gate.api(`/visits/${visit.visit.id}`);
       const departBody = {};
       for (const s of after.departSteps || []) departBody[s.key] = true;
@@ -196,9 +191,28 @@ async function main() {
         body: departBody,
       });
       assert(
-        "司机离场完成",
-        depart.ok === true && depart.visit.status === "completed",
+        "作业离场检查完成",
+        depart.ok === true && depart.visit.status === "departing" && depart.pendingCheckout,
         depart.visit?.status
+      );
+      const dSign = await api(`/visits/${visit.visit.id}/checkout/sign`, {
+        method: "POST",
+        body: { role: "driver" },
+      });
+      assert("司机签退", !!dSign.visit?.checkout_signs?.driver);
+      const gSign = await gate.api(`/visits/${visit.visit.id}/checkout/sign`, {
+        method: "POST",
+        body: { role: "gate" },
+      });
+      assert("门岗签退", gSign.bothSigned === true);
+      const confirm = await gate.api(`/visits/${visit.visit.id}/checkout/confirm`, {
+        method: "POST",
+        body: { passCode: visit.visit.pass_code || checkin.visit.pass_code },
+      });
+      assert(
+        "双签离场闭环",
+        confirm.ok === true && confirm.visit.status === "completed" && !!confirm.archiveKey,
+        confirm.archiveKey || confirm.visit?.status
       );
     } catch (e) {
       fail("新司机全流程", e.stack || e.message);
@@ -411,6 +425,11 @@ async function main() {
       assert("通知接口", Array.isArray(notes.items));
       const kpi = await gate2.api("/gate/kpi");
       assert("门岗KPI", typeof kpi.inspecting === "number");
+
+      const archived = await (await asUser("13800000000", "admin123")).api(
+        "/visits?plate=沪A&status=completed"
+      );
+      assert("台账按车牌检索", Array.isArray(archived.items));
     } catch (e) {
       fail("智能编排自检", e.stack || e.message);
     }

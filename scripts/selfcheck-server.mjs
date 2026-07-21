@@ -152,12 +152,39 @@ async function main() {
 
       const departBody = {};
       for (const s of detail.departSteps || []) departBody[s.key] = true;
+      // refresh depart steps after inspect (same profile)
+      const after = await api(`/visits/${created.visit.id}`, { token: tokens.gate });
+      for (const s of after.departSteps || []) departBody[s.key] = true;
       const depart = await api(`/visits/${created.visit.id}/depart`, {
         method: "POST",
         token,
         body: departBody,
       });
-      assert("熟手离场", depart.ok && depart.visit.status === "completed", depart.visit?.status);
+      assert(
+        "熟手离场检查",
+        depart.ok && depart.visit.status === "departing",
+        depart.visit?.status
+      );
+      await api(`/visits/${created.visit.id}/checkout/sign`, {
+        method: "POST",
+        token,
+        body: { role: "driver" },
+      });
+      await api(`/visits/${created.visit.id}/checkout/sign`, {
+        method: "POST",
+        token: tokens.gate,
+        body: { role: "gate" },
+      });
+      const confirm = await api(`/visits/${created.visit.id}/checkout/confirm`, {
+        method: "POST",
+        token: tokens.gate,
+        body: { passCode: checkin.visit.pass_code },
+      });
+      assert(
+        "熟手离场",
+        confirm.ok && confirm.visit.status === "completed" && !!confirm.archiveKey,
+        confirm.archiveKey || confirm.visit?.status
+      );
     }
   } catch (e) {
     fail("熟手闭环", e.message);

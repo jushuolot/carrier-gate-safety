@@ -24,6 +24,26 @@ const DOC_TEMPLATES = {
     fields: ["policyNo", "coverage", "expireAt"],
     defaultExpireDays: 200,
   },
+  id_card: {
+    fields: ["name", "idNo", "expireAt"],
+    defaultExpireDays: 3650,
+  },
+  hazmat_permit: {
+    fields: ["name", "permitNo", "category", "expireAt"],
+    defaultExpireDays: 365,
+  },
+  manifest: {
+    fields: ["manifestNo", "goodsName", "expireAt"],
+    defaultExpireDays: 30,
+  },
+  delivery_note: {
+    fields: ["dnNo", "customer", "expireAt"],
+    defaultExpireDays: 30,
+  },
+  auth_letter: {
+    fields: ["principal", "agent", "expireAt"],
+    defaultExpireDays: 30,
+  },
 };
 
 function addDays(days) {
@@ -98,6 +118,27 @@ function demoValue(docType, field, hint) {
       policyNo: "PICC-2026-000881",
       coverage: "交强险+商业险",
     },
+    id_card: {
+      name: hint.name || "张师傅",
+      idNo: "310***********1234",
+    },
+    hazmat_permit: {
+      name: hint.name || "张师傅",
+      permitNo: "危运许-2026-881",
+      category: "3 类易燃液体",
+    },
+    manifest: {
+      manifestNo: hint.manifestNo || "EM-2026-0001",
+      goodsName: hint.goodsName || "示例危化品",
+    },
+    delivery_note: {
+      dnNo: hint.dnNo || "DN-2026-0001",
+      customer: hint.customer || "示例客户",
+    },
+    auth_letter: {
+      principal: hint.principal || "示例客户公司",
+      agent: hint.agent || hint.name || "提货人",
+    },
   };
   return map[docType]?.[field] || "";
 }
@@ -108,4 +149,9 @@ export const DOC_TYPE_LABELS = {
   qualification: "从业资格证",
   transport_permit: "道路运输证",
   insurance: "保险单",
+  id_card: "身份证",
+  hazmat_permit: "危化品从业资格/运输许可",
+  manifest: "电子运单",
+  delivery_note: "提货单/DN",
+  auth_letter: "授权委托书",
 };

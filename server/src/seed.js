@@ -183,6 +183,12 @@ db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
 );
 db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run("slot_capacity", "4");
 db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run("dwell_warn_minutes", "90");
+db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
+  "warehouse_notify_email",
+  "warehouse-leads@example.com"
+);
+
+insertDoc("driver", driverOk, "id_card", 2000);
 
 const day = now.slice(0, 10);
 const slotA = `${day}T09:00:00`;
@@ -196,7 +202,7 @@ db.prepare(
    (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
     checkin_at, admitted_at, visit_type, selected_options, slot_start, slot_end,
     pass_code, risk_score, risk_level, created_at, updated_at)
-   VALUES (?, ?, ?, ?, ?, ?, 'inspecting', NULL, ?, ?, 'carrier', '[]', ?, ?, ?, ?, ?, ?, ?)`
+   VALUES (?, ?, ?, ?, ?, ?, 'inspecting', NULL, ?, ?, 'carrier_inbound', '[]', ?, ?, ?, ?, ?, ?, ?)`
 ).run(
   "visit-demo-inspect",
   siteId,
@@ -220,7 +226,7 @@ db.prepare(
    (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
     checkin_at, visit_type, selected_options, slot_start, slot_end,
     pass_code, risk_score, risk_level, created_at, updated_at)
-   VALUES (?, ?, ?, ?, ?, ?, 'access_pending', ?, ?, 'carrier', '[]', ?, ?, ?, ?, ?, ?, ?)`
+   VALUES (?, ?, ?, ?, ?, ?, 'access_pending', ?, ?, 'carrier_inbound', '[]', ?, ?, ?, ?, ?, ?, ?)`
 ).run(
   "visit-demo-pending",
   siteId,

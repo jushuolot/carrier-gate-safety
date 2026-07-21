@@ -3,7 +3,7 @@
  * 数据落在 localStorage，刷新可续。
  */
 
-const STORE_KEY = "cgs-pages-demo-v4";
+const STORE_KEY = "cgs-pages-demo-v5";
 
 function addDays(n) {
   const d = new Date();
@@ -72,8 +72,13 @@ function dwellMinutes(onsiteAt) {
 }
 
 function computeRisk(s, { allowed, reasons, training, driverId, carrierId, visitType }) {
-  if (visitType === "self_pickup") {
-    return { riskScore: 25, riskLevel: "low", riskFactors: ["自提轻量通道"], fastLane: true };
+  if (visitType === "self_pickup" || visitType === "temporary") {
+    return {
+      riskScore: visitType === "temporary" ? 40 : 25,
+      riskLevel: visitType === "temporary" ? "medium" : "low",
+      riskFactors: [visitType === "temporary" ? "临时车辆通道" : "自提轻量通道"],
+      fastLane: visitType === "self_pickup",
+    };
   }
   let score = 12;
   const factors = [];
@@ -189,6 +194,7 @@ function seed() {
     documents: [
       doc("driver", "driver-ok", "driver_license", 200),
       doc("driver", "driver-ok", "qualification", 200),
+      doc("driver", "driver-ok", "id_card", 2000),
       doc("vehicle", "veh-1", "vehicle_license", 180),
       doc("vehicle", "veh-1", "insurance", 180),
       doc("vehicle", "veh-2", "vehicle_license", 180),
@@ -208,7 +214,7 @@ function seed() {
         admitted_at: now(),
         status: "inspecting",
         block_reasons: null,
-        visit_type: "carrier",
+        visit_type: "carrier_inbound",
         selected_options: [],
         customer_name: null,
         customer_phone: null,
@@ -233,7 +239,7 @@ function seed() {
         block_reasons: [
           { code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过" },
         ],
-        visit_type: "carrier",
+        visit_type: "carrier_inbound",
         selected_options: [],
         customer_name: null,
         customer_phone: null,
@@ -289,41 +295,73 @@ const LABELS = {
   qualification: "从业资格证",
   transport_permit: "道路运输证",
   insurance: "保险单",
+  id_card: "身份证",
+  hazmat_permit: "危化品从业资格/运输许可",
+  manifest: "电子运单",
+  delivery_note: "提货单/DN",
+  auth_letter: "授权委托书",
 };
 
 const VISIT_TYPES = {
-  carrier: {
-    id: "carrier",
-    label: "承运到场",
+  carrier_inbound: {
+    id: "carrier_inbound",
+    label: "运输入场（送货）",
+    accessMode: "full",
     inspectChecklist: [
+      { key: "idMatch", label: "人证一致（证件与本人）" },
       { key: "ppe", label: "PPE 佩戴合格（安全帽/反光衣）" },
-      { key: "vehicle", label: "车辆外观/轮胎检查合格" },
+      { key: "vehicle", label: "车辆外观/轮胎/车牌核验" },
       { key: "docs", label: "纸质证件与系统一致" },
-      { key: "hazard", label: "无泄漏/无危险品违规" },
+      { key: "hazard", label: "无泄漏/危化信息与电子运单一致" },
     ],
     departCore: [
-      { key: "loadDone", label: "装卸完成确认" },
-      { key: "inventoryDone", label: "物资/铅封清点" },
-      { key: "safetySigned", label: "安全确认签署" },
-      { key: "gateCheckout", label: "门岗签退" },
+      { key: "loadDone", label: "装卸作业完成确认" },
+      { key: "inventoryDone", label: "仓管按 DN/实物核对完成" },
+      { key: "ehsDepartCheck", label: "EHS 离场安全检查" },
     ],
     departOptional: [
+      { key: "hazmat", label: "危化品运输（须电子运单一致）" },
       { key: "weighbridge", label: "过磅记录" },
       { key: "sealPhoto", label: "铅封拍照取证" },
     ],
   },
+  carrier_outbound: {
+    id: "carrier_outbound",
+    label: "运输出场（提货）",
+    accessMode: "full",
+    inspectChecklist: [
+      { key: "idMatch", label: "人证一致（证件与本人）" },
+      { key: "ppe", label: "PPE 佩戴合格" },
+      { key: "vehicle", label: "车辆外观/车牌核验" },
+      { key: "docs", label: "纸质证件与系统一致" },
+      { key: "orderMatch", label: "提货指令/DN 与预约一致" },
+    ],
+    departCore: [
+      { key: "loadDone", label: "装货完成确认" },
+      { key: "inventoryDone", label: "仓管按 DN 核对并电子签收" },
+      { key: "ehsDepartCheck", label: "EHS 离场安全检查" },
+    ],
+    departOptional: [
+      { key: "hazmat", label: "危化品运输（须电子运单一致）" },
+      { key: "weighbridge", label: "过磅记录" },
+      { key: "sealPhoto", label: "铅封拍照取证" },
+    ],
+  },
+  carrier: { id: "carrier", label: "承运到场", aliasOf: "carrier_inbound" },
   self_pickup: {
     id: "self_pickup",
     label: "客户自提",
+    accessMode: "light",
     inspectChecklist: [
       { key: "idVerify", label: "提货人身份核验" },
       { key: "orderMatch", label: "提货单/订单与实物一致" },
+      { key: "authLetter", label: "授权委托书核验（如代提）" },
       { key: "ppe", label: "进入作业区 PPE 合格（若入区）" },
     ],
     departCore: [
-      { key: "orderConfirm", label: "提货单核对完成" },
-      { key: "goodsHandover", label: "货物交接签收" },
-      { key: "gateCheckout", label: "门岗签退/出门证" },
+      { key: "orderConfirm", label: "仓管按 DN 核对完成" },
+      { key: "goodsHandover", label: "货物交接电子签收" },
+      { key: "ehsDepartCheck", label: "EHS 离场检查" },
     ],
     departOptional: [
       { key: "safetyBrief", label: "现场安全告知（短训确认）" },
@@ -333,17 +371,54 @@ const VISIT_TYPES = {
       { key: "invoicePrint", label: "打印出门证/提货凭证" },
     ],
   },
+  temporary: {
+    id: "temporary",
+    label: "其他临时车辆",
+    accessMode: "temporary",
+    inspectChecklist: [
+      { key: "idMatch", label: "人员身份核验" },
+      { key: "vehicle", label: "车牌与登记一致" },
+      { key: "purpose", label: "进厂事由确认" },
+      { key: "ppe", label: "PPE 合格（若入作业区）" },
+    ],
+    departCore: [
+      { key: "workDone", label: "临时作业/拜访完成" },
+      { key: "ehsDepartCheck", label: "EHS 离场检查" },
+    ],
+    departOptional: [
+      { key: "safetyBrief", label: "现场安全告知" },
+      { key: "escortConfirm", label: "陪同人确认" },
+    ],
+  },
 };
 
+function normalizeVisitType(visitType) {
+  if (!visitType || visitType === "carrier") return "carrier_inbound";
+  const t = VISIT_TYPES[visitType];
+  if (t?.aliasOf) return t.aliasOf;
+  return t ? t.id : "carrier_inbound";
+}
+
+function getVisitProfile(visitType) {
+  return VISIT_TYPES[normalizeVisitType(visitType)] || VISIT_TYPES.carrier_inbound;
+}
+
 function resolveDepartSteps(visitType, selectedOptions = []) {
-  const profile = VISIT_TYPES[visitType] || VISIT_TYPES.carrier;
+  const profile = getVisitProfile(visitType);
   const allowed = new Set(profile.departOptional.map((s) => s.key));
-  const selected = (selectedOptions || []).filter((k) => allowed.has(k));
+  const selected = (selectedOptions || []).filter((k) => allowed.has(k) && k !== "hazmat");
   const optMap = Object.fromEntries(profile.departOptional.map((s) => [s.key, s]));
   return [
     ...profile.departCore.map((s) => ({ ...s, required: true, source: "core" })),
     ...selected.map((key) => ({ ...optMap[key], required: true, source: "optional" })),
   ];
+}
+
+function makeArchiveKey(plateNo, at = new Date()) {
+  const d = at instanceof Date ? at : new Date(at);
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const plate = String(plateNo || "NOPLATE").replace(/\s+/g, "").toUpperCase();
+  return `${ymd}_${plate}`;
 }
 
 function load() {
@@ -371,14 +446,16 @@ function enrichVisit(s, v) {
   const d = s.drivers.find((x) => x.id === v.driver_id);
   const vh = s.vehicles.find((x) => x.id === v.vehicle_id);
   const c = s.carriers.find((x) => x.id === v.carrier_id);
-  const visitType = v.visit_type || "carrier";
+  const visitType = normalizeVisitType(v.visit_type || "carrier");
   const selectedOptions = v.selected_options || [];
   const mins = dwellMinutes(v.onsite_at);
   const warn = dwellWarnMinutes(s);
+  const departure = v.departure_json || null;
+  const signs = departure?.signs || { driver: null, gate: null };
   return {
     ...v,
     visit_type: visitType,
-    visit_type_label: (VISIT_TYPES[visitType] || VISIT_TYPES.carrier).label,
+    visit_type_label: getVisitProfile(visitType).label,
     selected_options: selectedOptions,
     depart_steps: resolveDepartSteps(visitType, selectedOptions),
     driver_name: d?.name,
@@ -387,23 +464,28 @@ function enrichVisit(s, v) {
     carrier_name: c?.name,
     block_reasons: v.block_reasons || null,
     inspection: v.inspection_json || null,
-    departure: v.departure_json || null,
+    departure,
     exception: v.exception_note || null,
     dwell_minutes: v.status === "onsite" || v.status === "departing" ? mins : null,
     dwell_over: (v.status === "onsite" || v.status === "departing") && mins >= warn,
     dwell_warn_minutes: warn,
     fast_lane: v.risk_level === "low",
+    checkout_signs: signs,
+    ready_for_sign: !!departure?.readyForSign,
+    both_signed: !!(signs.driver && signs.gate),
+    archive_key: v.archive_key || departure?.archiveKey || null,
   };
 }
 
-function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", selectedOptions = [] }) {
-  if (visitType === "self_pickup") {
+function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier_inbound", selectedOptions = [] }) {
+  const type = normalizeVisitType(visitType);
+  if (type === "self_pickup") {
     const base = {
       allowed: true,
       reasons: [],
       lights: { training: !selectedOptions.includes("safetyBrief"), documents: true, subject: true },
       mode: "self_pickup",
-      note: "自提走轻量准入；身份核验与提货单核对在门岗安检完成；勾选的可选步骤在离场收口强制完成",
+      note: "自提：预约须填 DN；身份/授权书/订单在门岗 Check In；离场须仓管签收 + 双签 Check Out",
       training: null,
       course: null,
     };
@@ -415,8 +497,44 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
         training: null,
         driverId,
         carrierId,
-        visitType,
+        visitType: type,
       }),
+    };
+  }
+  if (type === "temporary") {
+    const reasons = [];
+    const today = addDays(0);
+    const driver = s.drivers.find((d) => d.id === driverId);
+    const vehicle = s.vehicles.find((v) => v.id === vehicleId);
+    if (!driver || driver.status !== "active") reasons.push({ code: "DRIVER_BLOCKED", message: "人员状态不可用" });
+    if (!vehicle || vehicle.status !== "active") reasons.push({ code: "VEHICLE_BLOCKED", message: "车辆状态不可用" });
+    const training = [...s.training]
+      .filter((t) => t.driver_id === driverId && t.course_id === s.course.id && t.quiz_passed)
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+    let trainingOk = false;
+    if (!training) reasons.push({ code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过（有效期 1 年）" });
+    else if (!training.valid_until || training.valid_until < today)
+      reasons.push({ code: "TRAINING_EXPIRED", message: `培训已过期（有效至 ${training.valid_until || "-"}），须复训` });
+    else trainingOk = true;
+    const idDoc = s.documents.find(
+      (x) => x.subject_type === "driver" && x.subject_id === driverId && x.doc_type === "id_card" && x.status === "valid"
+    );
+    if (!idDoc) reasons.push({ code: "DOC_MISSING", message: "人员缺少证件: id_card", docType: "id_card" });
+    else if (idDoc.expire_at && idDoc.expire_at < today)
+      reasons.push({ code: "DOC_EXPIRED", message: "人员证件过期: id_card", docType: "id_card" });
+    const allowed = reasons.length === 0;
+    return {
+      allowed,
+      reasons,
+      lights: {
+        training: trainingOk,
+        documents: !!idDoc && !(idDoc.expire_at && idDoc.expire_at < today),
+        subject: !reasons.some((r) => ["DRIVER_BLOCKED", "VEHICLE_BLOCKED"].includes(r.code)),
+      },
+      training: training || null,
+      course: s.course,
+      mode: "temporary",
+      ...computeRisk(s, { allowed, reasons, training: training || null, driverId, carrierId, visitType: type }),
     };
   }
   const reasons = [];
@@ -432,7 +550,7 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
     .filter((t) => t.driver_id === driverId && t.course_id === s.course.id && t.quiz_passed)
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   let trainingOk = false;
-  if (!training) reasons.push({ code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过" });
+  if (!training) reasons.push({ code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过（有效期 1 年）" });
   else if (!training.valid_until || training.valid_until < today)
     reasons.push({ code: "TRAINING_EXPIRED", message: `培训已过期（有效至 ${training.valid_until || "-"}），须复训` });
   else trainingOk = true;
@@ -442,19 +560,23 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
     vehicle: ["vehicle_license", "insurance"],
     carrier: ["transport_permit"],
   };
-  const check = (type, id, list) => {
+  const check = (stype, id, list) => {
     for (const t of list) {
       const d = s.documents
-        .filter((x) => x.subject_type === type && x.subject_id === id && x.doc_type === t && x.status === "valid")
+        .filter((x) => x.subject_type === stype && x.subject_id === id && x.doc_type === t && x.status === "valid")
         .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
-      if (!d) reasons.push({ code: "DOC_MISSING", message: `${type}缺少证件: ${t}`, docType: t });
+      if (!d) reasons.push({ code: "DOC_MISSING", message: `${stype}缺少证件: ${t}`, docType: t });
       else if (d.expire_at && d.expire_at < today)
-        reasons.push({ code: "DOC_EXPIRED", message: `${type}证件过期: ${t}`, docType: t });
+        reasons.push({ code: "DOC_EXPIRED", message: `${stype}证件过期: ${t}`, docType: t });
     }
   };
   check("driver", driverId, need.driver);
   check("vehicle", vehicleId, need.vehicle);
   check("carrier", carrierId, need.carrier);
+  if ((selectedOptions || []).includes("hazmat")) {
+    check("driver", driverId, ["hazmat_permit"]);
+    check("vehicle", vehicleId, ["manifest"]);
+  }
 
   const docsOk = !reasons.some((r) => r.code === "DOC_MISSING" || r.code === "DOC_EXPIRED");
   const allowed = reasons.length === 0;
@@ -464,7 +586,7 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
     training: training || null,
     driverId,
     carrierId,
-    visitType,
+    visitType: type,
   });
   return {
     allowed,
@@ -476,6 +598,7 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
     },
     training: training || null,
     course: s.course,
+    mode: type,
     ...risk,
   };
 }
@@ -553,13 +676,17 @@ export async function mockApi(path, options = {}) {
   if (p === "/meta/doc-types") return ok({ labels: LABELS });
   if (p === "/meta/visit-types") {
     return ok({
-      items: Object.values(VISIT_TYPES).map((t) => ({
-        id: t.id,
-        label: t.label,
-        departCore: t.departCore,
-        departOptional: t.departOptional,
-        inspectChecklist: t.inspectChecklist,
-      })),
+      items: ["carrier_inbound", "carrier_outbound", "self_pickup", "temporary"].map((id) => {
+        const t = getVisitProfile(id);
+        return {
+          id: t.id,
+          label: t.label,
+          accessMode: t.accessMode,
+          departCore: t.departCore,
+          departOptional: t.departOptional,
+          inspectChecklist: t.inspectChecklist,
+        };
+      }),
     });
   }
 
@@ -827,15 +954,39 @@ export async function mockApi(path, options = {}) {
       return ok({ items: [enriched], visit: enriched });
     }
     let items = s.visits.map((v) => enrichVisit(s, v));
-    if (q.status) items = items.filter((v) => v.status === q.status);
+    if (q.status) {
+      const statuses = String(q.status)
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+      items = items.filter((v) => statuses.includes(v.status));
+    }
+    if (q.type) {
+      const t = normalizeVisitType(q.type);
+      items = items.filter((v) => normalizeVisitType(v.visit_type) === t);
+    }
+    if (q.plate) {
+      const ptxt = String(q.plate).trim();
+      items = items.filter((v) => (v.plate_no || "").includes(ptxt));
+    }
+    if (q.pickupRef) {
+      const r = String(q.pickupRef).trim();
+      items = items.filter((v) => (v.pickup_ref || "").includes(r));
+    }
+    if (q.archiveKey) {
+      const a = String(q.archiveKey).trim();
+      items = items.filter((v) => (v.archive_key || "").includes(a));
+    }
+    if (q.from) items = items.filter((v) => (v.updated_at || "") >= q.from);
+    if (q.to) items = items.filter((v) => (v.updated_at || "") <= q.to);
     items.sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0) || (a.updated_at < b.updated_at ? 1 : -1));
     return ok({ items });
   }
 
   if (p === "/visits" && method === "POST") {
-    const type = body.visitType === "self_pickup" ? "self_pickup" : "carrier";
+    const type = normalizeVisitType(body.visitType);
     if (type === "self_pickup" && (!body.customerName || !body.pickupRef)) {
-      fail("自提须填写提货人姓名与提货单号");
+      fail("自提须填写提货人姓名与提货单号(DN)");
     }
     if (!body.slotStart || !body.slotEnd) fail("请选择到场时段");
     const booked = s.visits.filter(
@@ -843,12 +994,13 @@ export async function mockApi(path, options = {}) {
     ).length;
     if (booked >= slotCapacity(s)) fail("该时段已满，请选择其他时段");
 
-    const profile = VISIT_TYPES[type];
+    const profile = getVisitProfile(type);
     const allowedOpts = new Set(profile.departOptional.map((x) => x.key));
     const selected = (body.selectedOptions || []).filter((k) => allowedOpts.has(k));
     const cid = body.carrierId || (type === "self_pickup" ? "carrier-self" : null);
     const did = body.driverId || (type === "self_pickup" ? "driver-pickup" : null);
     const vid = body.vehicleId || (type === "self_pickup" ? "veh-pickup" : null);
+    if (type !== "self_pickup" && (!cid || !did || !vid)) fail("缺少承运商/司机/车辆");
     const access = evaluate(s, {
       driverId: did,
       vehicleId: vid,
@@ -876,6 +1028,7 @@ export async function mockApi(path, options = {}) {
       pass_code: null,
       risk_score: access.riskScore,
       risk_level: access.riskLevel,
+      archive_key: null,
       created_at: now(),
       updated_at: now(),
     };
@@ -886,7 +1039,7 @@ export async function mockApi(path, options = {}) {
   }
 
   const visitMatch = p.match(
-    /^\/visits\/([^/]+)(?:\/(checkin|inspect|depart|exception(?:\/approve|\/reject)?))?$/
+    /^\/visits\/([^/]+)(?:\/(checkin|inspect|depart|checkout\/sign|checkout\/confirm|exception(?:\/approve|\/reject)?))?$/
   );
   if (visitMatch) {
     const visit = s.visits.find((v) => v.id === visitMatch[1]);
@@ -895,17 +1048,18 @@ export async function mockApi(path, options = {}) {
 
     if (!action && method === "GET") {
       const selectedOptions = visit.selected_options || [];
+      const vt = normalizeVisitType(visit.visit_type);
       return ok({
         visit: enrichVisit(s, visit),
         access: evaluate(s, {
           driverId: visit.driver_id,
           vehicleId: visit.vehicle_id,
           carrierId: visit.carrier_id,
-          visitType: visit.visit_type || "carrier",
+          visitType: vt,
           selectedOptions,
         }),
-        departSteps: resolveDepartSteps(visit.visit_type || "carrier", selectedOptions),
-        inspectChecklist: (VISIT_TYPES[visit.visit_type] || VISIT_TYPES.carrier).inspectChecklist,
+        departSteps: resolveDepartSteps(vt, selectedOptions),
+        inspectChecklist: getVisitProfile(vt).inspectChecklist,
       });
     }
 
@@ -937,7 +1091,7 @@ export async function mockApi(path, options = {}) {
     }
 
     if (action === "inspect" && method === "POST") {
-      const profile = VISIT_TYPES[visit.visit_type] || VISIT_TYPES.carrier;
+      const profile = getVisitProfile(visit.visit_type);
       const checklist = body.checklist || {};
       const pass =
         body.pass !== false &&
@@ -970,34 +1124,135 @@ export async function mockApi(path, options = {}) {
     }
 
     if (action === "depart" && method === "POST") {
-      const visitType = visit.visit_type || "carrier";
+      const visitType = normalizeVisitType(visit.visit_type);
       const selectedOptions = visit.selected_options || [];
       const required = resolveDepartSteps(visitType, selectedOptions);
-      const steps = Object.fromEntries(required.map((step) => [step.key, !!(body[step.key] ?? body.steps?.[step.key])]));
+      const steps = Object.fromEntries(
+        required.map((step) => [step.key, !!(body[step.key] ?? body.steps?.[step.key])])
+      );
       const missing = required.filter((step) => !steps[step.key]).map((step) => step.key);
+      const prev = visit.departure_json || {};
       visit.updated_at = now();
       if (missing.length) {
         visit.status = "departing";
-        visit.departure_json = { steps, missing, required, at: now() };
+        visit.departure_json = {
+          ...prev,
+          steps,
+          missing,
+          required,
+          signs: prev.signs || { driver: null, gate: null },
+          at: now(),
+        };
         save(s);
         return ok({
           ok: false,
           missing,
           required,
           visit: enrichVisit(s, visit),
-          message: "离场收口未完成（含已勾选的可选步骤）",
+          message: "作业完成/离场检查未完成（含已勾选的可选步骤）",
         });
       }
       const weight = selectedOptions.includes("weighbridge")
         ? { ok: true, weightKg: 15000 + Math.floor(Math.random() * 3000), at: now() }
-        : null;
+        : prev.weight || null;
+      visit.status = "departing";
+      visit.departure_json = {
+        ...prev,
+        steps,
+        missing: [],
+        required,
+        weight,
+        selectedOptions,
+        readyForSign: true,
+        signs: prev.signs || { driver: null, gate: null },
+        at: now(),
+        preparedBy: user.name,
+      };
+      audit(s, user, "visit.depart_prepare", "visit", visit.id, { steps, visitType });
+      save(s);
+      return ok({
+        ok: true,
+        pendingCheckout: true,
+        visit: enrichVisit(s, visit),
+        weight,
+        message: "作业与离场检查已完成，请司机与门岗双签后扫码放行",
+      });
+    }
+
+    if (action === "checkout/sign" && method === "POST") {
+      if (visit.status !== "departing") fail(`当前状态不可签退: ${visit.status}`);
+      const dep = visit.departure_json || {};
+      if (!dep.readyForSign) fail("请先完成作业/离场检查步骤");
+      const roleName = body.role || (user.role === "gate" ? "gate" : "driver");
+      if (!["driver", "gate"].includes(roleName)) fail("role 须为 driver 或 gate");
+      if (roleName === "gate" && !["gate", "ehs", "admin"].includes(user.role)) fail("仅门岗可签退门岗端", 403);
+      const signs = { ...(dep.signs || { driver: null, gate: null }) };
+      signs[roleName] = {
+        name: body.name || user.name,
+        at: now(),
+        byId: user.id,
+        device: body.device || "mobile",
+      };
+      visit.departure_json = { ...dep, signs, at: now() };
+      visit.updated_at = now();
+      audit(s, user, "visit.checkout_sign", "visit", visit.id, { role: roleName });
+      save(s);
+      return ok({
+        ok: true,
+        visit: enrichVisit(s, visit),
+        bothSigned: !!(signs.driver && signs.gate),
+        message:
+          signs.driver && signs.gate
+            ? "双签完成，门岗可扫码确认离场"
+            : `${roleName === "driver" ? "司机" : "门岗"}已签退`,
+      });
+    }
+
+    if (action === "checkout/confirm" && method === "POST") {
+      if (!["gate", "ehs", "admin"].includes(user.role)) fail("无权限", 403);
+      if (visit.status !== "departing") fail(`当前状态不可确认离场: ${visit.status}`);
+      const dep = visit.departure_json || {};
+      if (!dep.readyForSign || !dep.signs?.driver || !dep.signs?.gate) {
+        fail("须司机与门岗双方签退后才能开闸离场");
+      }
+      const code = (body.passCode || "").trim();
+      if (code && visit.pass_code && code.toUpperCase() !== String(visit.pass_code).toUpperCase()) {
+        fail("通行码不匹配");
+      }
+      const enrichedPre = enrichVisit(s, visit);
+      const archiveKey = makeArchiveKey(enrichedPre.plate_no, new Date());
+      const notify = {
+        channel: "email",
+        to: "warehouse-leads@example.com",
+        subject: `到离场电子归档 ${archiveKey}`,
+        body: `单据 ${visit.id} 已按 ${archiveKey} 归档`,
+        sentAt: now(),
+        mock: true,
+      };
       visit.status = "completed";
       visit.checkout_at = now();
-      visit.departure_json = { steps, weight, selectedOptions, at: now() };
+      visit.archive_key = archiveKey;
+      visit.departure_json = {
+        ...dep,
+        confirmedBy: user.name,
+        confirmedAt: now(),
+        archiveKey,
+        notify,
+        at: now(),
+      };
+      visit.updated_at = now();
       const deviceResult = { ok: true, gate: "open", direction: "out", txnId: nid() };
       deviceEvent(s, "barrier", "barrier-out-1", "opened", deviceResult);
+      audit(s, user, "visit.checkout_confirm", "visit", visit.id, { archiveKey, notify });
       save(s);
-      return ok({ ok: true, visit: enrichVisit(s, visit), deviceResult, weight });
+      return ok({
+        ok: true,
+        visit: enrichVisit(s, visit),
+        deviceResult,
+        archiveKey,
+        notify,
+        message: `离场闭环完成 · 归档 ${archiveKey}`,
+      });
     }
 
     if (action === "exception" && method === "POST") {

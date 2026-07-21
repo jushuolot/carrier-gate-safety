@@ -179,4 +179,5 @@ export function migrate() {
   addCol("pass_code", "pass_code TEXT");
   addCol("risk_score", "risk_score INTEGER");
   addCol("risk_level", "risk_level TEXT");
+  addCol("archive_key", "archive_key TEXT");
 }

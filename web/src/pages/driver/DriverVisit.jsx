@@ -6,7 +6,7 @@ import { PassCodeCard, RiskPill } from "../../components/PassCode";
 export default function DriverVisit() {
   const user = getUser();
   const [types, setTypes] = useState([]);
-  const [visitType, setVisitType] = useState("carrier");
+  const [visitType, setVisitType] = useState("carrier_inbound");
   const [selectedOptions, setSelectedOptions] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [vehicleId, setVehicleId] = useState("");
@@ -25,7 +25,8 @@ export default function DriverVisit() {
     () => types.find((t) => t.id === visitType) || null,
     [types, visitType]
   );
-
+  const needsVehicle = visitType !== "self_pickup";
+  const isPickup = visitType === "self_pickup";
   const selectedSlot = slots.find((s) => s.slotStart === slotStart);
 
   useEffect(() => {
@@ -70,37 +71,32 @@ export default function DriverVisit() {
 
   async function createVisit() {
     try {
-      const body =
-        visitType === "self_pickup"
-          ? {
-              visitType: "self_pickup",
-              selectedOptions,
-              customerName,
-              customerPhone,
-              pickupRef,
-              vehicleId: vehicleId || undefined,
-              carrierId: user.carrier_id || "carrier-self",
-              driverId: user.driver_id || "driver-pickup",
-              slotStart,
-              slotEnd: selectedSlot?.slotEnd,
-            }
-          : {
-              visitType: "carrier",
-              selectedOptions,
-              carrierId: user.carrier_id,
-              driverId: user.driver_id,
-              vehicleId,
-              slotStart,
-              slotEnd: selectedSlot?.slotEnd,
-            };
+      const body = isPickup
+        ? {
+            visitType: "self_pickup",
+            selectedOptions,
+            customerName,
+            customerPhone,
+            pickupRef,
+            vehicleId: vehicleId || undefined,
+            carrierId: user.carrier_id || "carrier-self",
+            driverId: user.driver_id || "driver-pickup",
+            slotStart,
+            slotEnd: selectedSlot?.slotEnd,
+          }
+        : {
+            visitType,
+            selectedOptions,
+            carrierId: user.carrier_id,
+            driverId: user.driver_id,
+            vehicleId,
+            slotStart,
+            slotEnd: selectedSlot?.slotEnd,
+          };
       const r = await api("/visits", { method: "POST", body });
       setVisit(r.visit);
       setAccess(r.access || null);
-      setMsg(
-        visitType === "self_pickup"
-          ? `自提预约已创建 · 时段 ${selectedSlot?.label || ""}`
-          : `承运预约已创建 · 时段 ${selectedSlot?.label || ""}`
-      );
+      setMsg(`预约已创建 · ${r.visit.visit_type_label} · 时段 ${selectedSlot?.label || ""}`);
     } catch (e) {
       setMsg(e.message);
     }
@@ -113,9 +109,7 @@ export default function DriverVisit() {
       setAccess(r.access);
       setMsg(
         r.message ||
-          (r.ok
-            ? `报到成功 · 通行码 ${r.visit.pass_code}`
-            : "准入未通过")
+          (r.ok ? `报到成功 · 通行码 ${r.visit.pass_code}` : "准入未通过，请按提示补齐培训/证件")
       );
     } catch (e) {
       setMsg(e.message);
@@ -130,11 +124,28 @@ export default function DriverVisit() {
       });
       setVisit(r.visit);
       if (r.required) setDepartSteps(r.required);
-      setMsg(r.message || (r.ok ? "离场完成，出口道闸已指令放行" : "请完成全部离场步骤"));
+      setMsg(r.message || (r.ok ? "请完成司机签退" : "请完成全部作业/离场检查"));
     } catch (e) {
       setMsg(e.message);
     }
   }
+
+  async function driverSign() {
+    try {
+      const r = await api(`/visits/${visit.id}/checkout/sign`, {
+        method: "POST",
+        body: { role: "driver" },
+      });
+      setVisit(r.visit);
+      setMsg(r.message);
+    } catch (e) {
+      setMsg(e.message);
+    }
+  }
+
+  const canCreate =
+    !!slotStart &&
+    (isPickup ? !!(customerName && pickupRef) : !!vehicleId);
 
   return (
     <div className="h5">
@@ -142,7 +153,7 @@ export default function DriverVisit() {
         ← 返回
       </Link>
       <h1 className="h5-title">到离场报到</h1>
-      <p className="h5-sub">约时段 · 通行码 · 离场收口</p>
+      <p className="h5-sub">①预约 → ②培训/登记 → ③报到通行码 → ⑥作业检查 → ⑦双签离场</p>
 
       <div className="card">
         <div className="field">
@@ -151,8 +162,10 @@ export default function DriverVisit() {
             {(types.length
               ? types
               : [
-                  { id: "carrier", label: "承运到场" },
+                  { id: "carrier_inbound", label: "运输入场（送货）" },
+                  { id: "carrier_outbound", label: "运输出场（提货）" },
                   { id: "self_pickup", label: "客户自提" },
+                  { id: "temporary", label: "其他临时车辆" },
                 ]
             ).map((t) => (
               <option key={t.id} value={t.id}>
@@ -173,7 +186,7 @@ export default function DriverVisit() {
           </select>
         </div>
 
-        {visitType === "carrier" && (
+        {needsVehicle && (
           <div className="field">
             <label>车辆</label>
             <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
@@ -186,7 +199,7 @@ export default function DriverVisit() {
           </div>
         )}
 
-        {visitType === "self_pickup" && (
+        {isPickup && (
           <>
             <div className="field">
               <label>提货人姓名</label>
@@ -197,11 +210,11 @@ export default function DriverVisit() {
               <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
             </div>
             <div className="field">
-              <label>提货单号</label>
+              <label>提货单号 / DN</label>
               <input
                 value={pickupRef}
                 onChange={(e) => setPickupRef(e.target.value)}
-                placeholder="例如 PO-2026-001"
+                placeholder="例如 DN-2026-001"
               />
             </div>
           </>
@@ -230,10 +243,7 @@ export default function DriverVisit() {
           type="button"
           style={{ marginTop: 12 }}
           onClick={createVisit}
-          disabled={
-            !slotStart ||
-            (visitType === "carrier" ? !vehicleId : !customerName || !pickupRef)
-          }
+          disabled={!canCreate}
         >
           创建预约
         </button>
@@ -242,19 +252,20 @@ export default function DriverVisit() {
       {visit && (
         <div className="card" style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <strong>到访单</strong>
+            <strong>{visit.visit_type_label || "到访单"}</strong>
             <RiskPill level={visit.risk_level} score={visit.risk_score} />
           </div>
           <p className="muted">
             状态 {visit.status}
             {visit.slot_start ? ` · 时段 ${String(visit.slot_start).slice(11, 16)}` : ""}
             {visit.plate_no ? ` · ${visit.plate_no}` : ""}
+            {visit.pickup_ref ? ` · DN ${visit.pickup_ref}` : ""}
           </p>
           {access?.riskFactors?.length > 0 && (
             <p className="muted">风险因子：{access.riskFactors.join("、")}</p>
           )}
           {visit.pass_code && (
-            <PassCodeCard code={visit.pass_code} hint="门岗扫码/输码即可打开本单" />
+            <PassCodeCard code={visit.pass_code} hint="门岗扫码/输码即可打开本单（Check In）" />
           )}
           {["appointed", "access_pending"].includes(visit.status) && (
             <button className="btn primary btn-block" type="button" onClick={checkin}>
@@ -274,9 +285,10 @@ export default function DriverVisit() {
         </div>
       )}
 
-      {visit && ["onsite", "departing"].includes(visit.status) && (
+      {visit && ["onsite", "departing"].includes(visit.status) && !visit.ready_for_sign && (
         <div className="card" style={{ marginTop: 12 }}>
-          <strong>离场收口</strong>
+          <strong>⑥ 作业完成与离场检查</strong>
+          <p className="muted">仓管核对 DN / EHS 检查完成后提交，再进入双签 Check Out</p>
           {(departSteps.length ? departSteps : visit.depart_steps || []).map((s) => (
             <label key={s.key} className="gate-check" style={{ marginTop: 8 }}>
               <input
@@ -291,8 +303,34 @@ export default function DriverVisit() {
             </label>
           ))}
           <button className="btn primary btn-block" type="button" style={{ marginTop: 12 }} onClick={doDepart}>
-            提交离场
+            提交离场检查
           </button>
+        </div>
+      )}
+
+      {visit && visit.status === "departing" && visit.ready_for_sign && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <strong>⑦ 签退 Check Out</strong>
+          <p className="muted">
+            司机签退 {visit.checkout_signs?.driver ? "✓" : "○"} · 门岗签退{" "}
+            {visit.checkout_signs?.gate ? "✓" : "○"}
+          </p>
+          {!visit.checkout_signs?.driver && (
+            <button className="btn primary btn-block" type="button" onClick={driverSign}>
+              司机手机签退
+            </button>
+          )}
+          {visit.checkout_signs?.driver && !visit.both_signed && (
+            <p className="muted">已签退，等待门岗双签并扫码确认离场</p>
+          )}
+          {visit.both_signed && <p className="muted">双签完成，门岗确认后即可离场</p>}
+        </div>
+      )}
+
+      {visit?.status === "completed" && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <strong>离场闭环完成</strong>
+          <p className="muted">归档号 {visit.archive_key || "-"}</p>
         </div>
       )}
 

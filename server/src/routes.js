@@ -11,6 +11,7 @@ import {
   missingDepartSteps,
   needsWeighOnDepart,
   normalizeSelectedOptions,
+  normalizeVisitType,
   resolveDepartSteps,
 } from "./services/visitProfiles.js";
 import {
@@ -20,7 +21,9 @@ import {
   dwellWarnMinutes,
   isDwellOver,
   listSlotsForDay,
+  makeArchiveKey,
   makePassCode,
+  notifyWarehouseStub,
   slotCapacity,
 } from "./services/yardOps.js";
 
@@ -546,7 +549,7 @@ export function createApiRouter({ deviceHub }) {
 
   // ---- visits state machine ----
   router.get("/visits", auth, (req, res) => {
-    const { status, passCode } = req.query;
+    const { status, passCode, type, plate, pickupRef, from, to, archiveKey } = req.query;
     if (passCode) {
       const v = db
         .prepare(
@@ -561,31 +564,59 @@ export function createApiRouter({ deviceHub }) {
       if (!v) return res.status(404).json({ error: "未找到通行码对应单据" });
       return res.json({ items: [enrichVisit(v)], visit: enrichVisit(v) });
     }
-    let items;
+
+    let sql = `SELECT v.*, d.name AS driver_name, d.phone AS driver_phone, vh.plate_no, c.name AS carrier_name
+       FROM visits v
+       JOIN drivers d ON d.id = v.driver_id
+       JOIN vehicles vh ON vh.id = v.vehicle_id
+       JOIN carriers c ON c.id = v.carrier_id
+       WHERE 1=1`;
+    const params = [];
     if (status) {
-      items = db
-        .prepare(
-          `SELECT v.*, d.name AS driver_name, d.phone AS driver_phone, vh.plate_no, c.name AS carrier_name
-           FROM visits v
-           JOIN drivers d ON d.id = v.driver_id
-           JOIN vehicles vh ON vh.id = v.vehicle_id
-           JOIN carriers c ON c.id = v.carrier_id
-           WHERE v.status = ?
-           ORDER BY COALESCE(v.risk_score, 0) DESC, v.updated_at DESC`
-        )
-        .all(status);
-    } else {
-      items = db
-        .prepare(
-          `SELECT v.*, d.name AS driver_name, d.phone AS driver_phone, vh.plate_no, c.name AS carrier_name
-           FROM visits v
-           JOIN drivers d ON d.id = v.driver_id
-           JOIN vehicles vh ON vh.id = v.vehicle_id
-           JOIN carriers c ON c.id = v.carrier_id
-           ORDER BY v.updated_at DESC LIMIT 100`
-        )
-        .all();
+      const statuses = String(status)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (statuses.length === 1) {
+        sql += ` AND v.status = ?`;
+        params.push(statuses[0]);
+      } else if (statuses.length > 1) {
+        sql += ` AND v.status IN (${statuses.map(() => "?").join(",")})`;
+        params.push(...statuses);
+      }
     }
+    if (type) {
+      const t = normalizeVisitType(type);
+      if (t === "carrier_inbound") {
+        sql += ` AND (v.visit_type = ? OR v.visit_type = 'carrier')`;
+        params.push(t);
+      } else {
+        sql += ` AND v.visit_type = ?`;
+        params.push(t);
+      }
+    }
+    if (plate) {
+      sql += ` AND vh.plate_no LIKE ?`;
+      params.push(`%${String(plate).trim()}%`);
+    }
+    if (pickupRef) {
+      sql += ` AND v.pickup_ref LIKE ?`;
+      params.push(`%${String(pickupRef).trim()}%`);
+    }
+    if (archiveKey) {
+      sql += ` AND v.archive_key LIKE ?`;
+      params.push(`%${String(archiveKey).trim()}%`);
+    }
+    if (from) {
+      sql += ` AND v.updated_at >= ?`;
+      params.push(String(from));
+    }
+    if (to) {
+      sql += ` AND v.updated_at <= ?`;
+      params.push(String(to));
+    }
+    sql += ` ORDER BY COALESCE(v.risk_score, 0) DESC, v.updated_at DESC LIMIT 200`;
+    const items = db.prepare(sql).all(...params);
     res.json({
       items: items.map((v) => enrichVisit(v)),
     });
@@ -627,7 +658,7 @@ export function createApiRouter({ deviceHub }) {
       slotEnd,
     } = req.body || {};
 
-    const type = visitType === "self_pickup" ? "self_pickup" : "carrier";
+    const type = normalizeVisitType(visitType);
     const options = normalizeSelectedOptions(type, selectedOptions);
 
     let cid = carrierId;
@@ -636,7 +667,7 @@ export function createApiRouter({ deviceHub }) {
 
     if (type === "self_pickup") {
       if (!customerName || !pickupRef) {
-        return res.status(400).json({ error: "自提须填写提货人姓名与提货单号" });
+        return res.status(400).json({ error: "自提须填写提货人姓名与提货单号(DN)" });
       }
       cid = cid || "carrier-self";
       did = did || req.user.driver_id || "driver-pickup";
@@ -824,29 +855,41 @@ export function createApiRouter({ deviceHub }) {
       return res.status(400).json({ error: `当前状态不可离场: ${v.status}` });
     }
 
-    const visitType = v.visit_type || "carrier";
+    const visitType = normalizeVisitType(v.visit_type || "carrier");
     const selectedOptions = safeJson(v.selected_options) || [];
     const { required, missing, steps } = missingDepartSteps(visitType, selectedOptions, {
       ...(req.body || {}),
       ...(req.body?.steps || {}),
     });
     const now = new Date().toISOString();
+    const prev = safeJson(v.departure_json) || {};
 
     if (missing.length) {
       db.prepare(
         `UPDATE visits SET status = 'departing', departure_json = ?, updated_at = ? WHERE id = ?`
-      ).run(JSON.stringify({ steps, missing, required, at: now }), now, v.id);
+      ).run(
+        JSON.stringify({
+          ...prev,
+          steps,
+          missing,
+          required,
+          signs: prev.signs || { driver: null, gate: null },
+          at: now,
+        }),
+        now,
+        v.id
+      );
       return res.json({
         ok: false,
         missing,
         required,
         visit: enrichVisit(getVisit(v.id)),
-        message: "离场收口未完成（含已勾选的可选步骤）",
+        message: "作业完成/离场检查未完成（含已勾选的可选步骤）",
       });
     }
 
-    let weight = null;
-    if (needsWeighOnDepart(visitType, selectedOptions)) {
+    let weight = prev.weight || null;
+    if (needsWeighOnDepart(visitType, selectedOptions) && !weight) {
       try {
         weight = await deviceHub.readWeight("scale-1");
       } catch {
@@ -854,24 +897,134 @@ export function createApiRouter({ deviceHub }) {
       }
     }
 
+    const departure = {
+      ...prev,
+      steps,
+      missing: [],
+      required,
+      weight,
+      selectedOptions,
+      readyForSign: true,
+      signs: prev.signs || { driver: null, gate: null },
+      at: now,
+      preparedBy: req.user.name,
+    };
+
     db.prepare(
-      `UPDATE visits SET status = 'completed', departure_json = ?, checkout_at = ?, updated_at = ? WHERE id = ?`
-    ).run(JSON.stringify({ steps, weight, selectedOptions, at: now }), now, now, v.id);
+      `UPDATE visits SET status = 'departing', departure_json = ?, updated_at = ? WHERE id = ?`
+    ).run(JSON.stringify(departure), now, v.id);
+
+    audit(req.user, "visit.depart_prepare", "visit", v.id, { steps, visitType });
+    res.json({
+      ok: true,
+      pendingCheckout: true,
+      visit: enrichVisit(getVisit(v.id)),
+      weight,
+      message: "作业与离场检查已完成，请司机与门岗双签后扫码放行",
+    });
+  });
+
+  router.post("/visits/:id/checkout/sign", auth, (req, res) => {
+    const v = getVisit(req.params.id);
+    if (!v) return res.status(404).json({ error: "不存在" });
+    if (v.status !== "departing") {
+      return res.status(400).json({ error: `当前状态不可签退: ${v.status}` });
+    }
+    const dep = safeJson(v.departure_json) || {};
+    if (!dep.readyForSign) {
+      return res.status(400).json({ error: "请先完成作业/离场检查步骤" });
+    }
+    const roleName = req.body?.role || (req.user.role === "gate" ? "gate" : "driver");
+    if (!["driver", "gate"].includes(roleName)) {
+      return res.status(400).json({ error: "role 须为 driver 或 gate" });
+    }
+    if (roleName === "gate" && !["gate", "ehs", "admin"].includes(req.user.role)) {
+      return res.status(403).json({ error: "仅门岗可签退门岗端" });
+    }
+    const now = new Date().toISOString();
+    const signs = { ...(dep.signs || { driver: null, gate: null }) };
+    signs[roleName] = {
+      name: req.body?.name || req.user.name,
+      at: now,
+      byId: req.user.id,
+      device: req.body?.device || "mobile",
+    };
+    const departure = { ...dep, signs, at: now };
+    db.prepare(`UPDATE visits SET departure_json = ?, updated_at = ? WHERE id = ?`).run(
+      JSON.stringify(departure),
+      now,
+      v.id
+    );
+    audit(req.user, "visit.checkout_sign", "visit", v.id, { role: roleName });
+    res.json({
+      ok: true,
+      visit: enrichVisit(getVisit(v.id)),
+      bothSigned: !!(signs.driver && signs.gate),
+      message: signs.driver && signs.gate ? "双签完成，门岗可扫码确认离场" : `${roleName === "driver" ? "司机" : "门岗"}已签退`,
+    });
+  });
+
+  router.post("/visits/:id/checkout/confirm", auth, role("gate", "ehs", "admin"), async (req, res) => {
+    const v = getVisit(req.params.id);
+    if (!v) return res.status(404).json({ error: "不存在" });
+    if (v.status !== "departing") {
+      return res.status(400).json({ error: `当前状态不可确认离场: ${v.status}` });
+    }
+    const dep = safeJson(v.departure_json) || {};
+    if (!dep.readyForSign || !dep.signs?.driver || !dep.signs?.gate) {
+      return res.status(400).json({ error: "须司机与门岗双方签退后才能开闸离场" });
+    }
+    const code = (req.body?.passCode || "").trim();
+    if (code && v.pass_code && code.toUpperCase() !== String(v.pass_code).toUpperCase()) {
+      return res.status(400).json({ error: "通行码不匹配" });
+    }
+    const now = new Date().toISOString();
+    const archiveKey = makeArchiveKey(v.plate_no, now);
+    const notify = notifyWarehouseStub({
+      archiveKey,
+      visitType: normalizeVisitType(v.visit_type),
+      pickupRef: v.pickup_ref,
+      plateNo: v.plate_no,
+      visitId: v.id,
+    });
+    const departure = {
+      ...dep,
+      confirmedBy: req.user.name,
+      confirmedAt: now,
+      archiveKey,
+      notify,
+      at: now,
+    };
+    db.prepare(
+      `UPDATE visits SET status = 'completed', departure_json = ?, checkout_at = ?, archive_key = ?, updated_at = ? WHERE id = ?`
+    ).run(JSON.stringify(departure), now, archiveKey, now, v.id);
 
     let deviceResult = null;
     try {
       deviceResult = await deviceHub.openBarrier("barrier-out-1", {
         visitId: v.id,
         direction: "out",
-        reason: "depart_complete",
+        reason: "checkout_dual_sign",
       });
     } catch (e) {
       deviceResult = { ok: false, error: String(e.message || e) };
     }
 
-    audit(req.user, "visit.depart", "visit", v.id, { steps, weight, deviceResult, visitType });
-    res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), deviceResult, weight });
+    audit(req.user, "visit.checkout_confirm", "visit", v.id, {
+      archiveKey,
+      notify,
+      deviceResult,
+    });
+    res.json({
+      ok: true,
+      visit: enrichVisit(getVisit(v.id)),
+      deviceResult,
+      archiveKey,
+      notify,
+      message: `离场闭环完成 · 归档 ${archiveKey}`,
+    });
   });
+
   router.post("/visits/:id/exception", auth, role("gate", "ehs", "admin"), async (req, res) => {
     const v = getVisit(req.params.id);
     if (!v) return res.status(404).json({ error: "不存在" });
@@ -1089,8 +1242,10 @@ function getVisit(id) {
 function enrichVisit(v) {
   if (!v) return null;
   const selectedOptions = safeJson(v.selected_options) || [];
-  const visitType = v.visit_type || "carrier";
+  const visitType = normalizeVisitType(v.visit_type || "carrier");
   const mins = dwellMinutes(v.onsite_at);
+  const departure = safeJson(v.departure_json);
+  const signs = departure?.signs || { driver: null, gate: null };
   return {
     ...v,
     visit_type: visitType,
@@ -1098,12 +1253,16 @@ function enrichVisit(v) {
     selected_options: selectedOptions,
     block_reasons: safeJson(v.block_reasons),
     inspection: safeJson(v.inspection_json),
-    departure: safeJson(v.departure_json),
+    departure,
     exception: safeJson(v.exception_note),
     depart_steps: resolveDepartSteps(visitType, selectedOptions),
     dwell_minutes: v.status === "onsite" || v.status === "departing" ? mins : null,
     dwell_over: (v.status === "onsite" || v.status === "departing") && isDwellOver(v.onsite_at),
     dwell_warn_minutes: dwellWarnMinutes(),
     fast_lane: v.risk_level === "low",
+    checkout_signs: signs,
+    ready_for_sign: !!departure?.readyForSign,
+    both_signed: !!(signs.driver && signs.gate),
+    archive_key: v.archive_key || departure?.archiveKey || null,
   };
 }

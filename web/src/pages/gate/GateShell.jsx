@@ -20,7 +20,7 @@ export default function GateShell() {
         <NavLink to="/gate" end>
           待办队列
         </NavLink>
-        <NavLink to="/gate/onsite">当前在场</NavLink>
+        <NavLink to="/gate/onsite">当前在场/签退</NavLink>
         <div className="side-meta">
           {user.name}
           <br />
@@ -48,7 +48,7 @@ export default function GateShell() {
         <NavLink to="/gate" end>
           待办
         </NavLink>
-        <NavLink to="/gate/onsite">在场</NavLink>
+        <NavLink to="/gate/onsite">在场/签退</NavLink>
         {(user.role === "admin" || user.role === "ehs") && (
           <NavLink to="/admin">后台</NavLink>
         )}

@@ -94,12 +94,12 @@ export function computeRisk({
   carrierId,
   visitType = "carrier",
 }) {
-  if (visitType === "self_pickup") {
+  if (visitType === "self_pickup" || visitType === "temporary") {
     return {
-      riskScore: 25,
-      riskLevel: "low",
-      riskFactors: ["自提轻量通道"],
-      fastLane: true,
+      riskScore: visitType === "temporary" ? 40 : 25,
+      riskLevel: visitType === "temporary" ? "medium" : "low",
+      riskFactors: [visitType === "temporary" ? "临时车辆通道" : "自提轻量通道"],
+      fastLane: visitType === "self_pickup",
     };
   }
 
@@ -208,4 +208,24 @@ export function dwellMinutes(onsiteAt) {
 
 export function isDwellOver(onsiteAt) {
   return dwellMinutes(onsiteAt) >= dwellWarnMinutes();
+}
+
+/** 电子归档键：YYYYMMDD_车牌号 */
+export function makeArchiveKey(plateNo, at = new Date()) {
+  const d = at instanceof Date ? at : new Date(at);
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const plate = String(plateNo || "NOPLATE").replace(/\s+/g, "").toUpperCase();
+  return `${ymd}_${plate}`;
+}
+
+/** 归档完成后通知仓管组长（邮件通道预留，演示写入审计） */
+export function notifyWarehouseStub({ archiveKey, visitType, pickupRef, plateNo, visitId }) {
+  return {
+    channel: "email",
+    to: getSetting("warehouse_notify_email", "warehouse-leads@example.com"),
+    subject: `到离场电子归档 ${archiveKey}`,
+    body: `单据 ${visitId} · 类型 ${visitType} · 车牌 ${plateNo || "-"} · DN ${pickupRef || "-"} 已按 ${archiveKey} 归档，可按业务类型/时间/车牌/DN 检索。`,
+    sentAt: new Date().toISOString(),
+    mock: true,
+  };
 }

@@ -6,10 +6,12 @@ export default function GateOnsite() {
   const [items, setItems] = useState([]);
   const [warn, setWarn] = useState(90);
   const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+  const [passCodes, setPassCodes] = useState({});
 
   async function load() {
     const [d, cfg] = await Promise.all([
-      api("/visits?status=onsite"),
+      api("/visits?status=onsite,departing"),
       api("/meta/yard-config").catch(() => ({ dwellWarnMinutes: 90 })),
     ]);
     setItems(d.items);
@@ -24,18 +26,45 @@ export default function GateOnsite() {
     return () => clearInterval(t);
   }, []);
 
+  async function gateSign(id) {
+    try {
+      const r = await api(`/visits/${id}/checkout/sign`, {
+        method: "POST",
+        body: { role: "gate" },
+      });
+      setMsg(r.message);
+      await load();
+    } catch (e) {
+      setMsg(e.message);
+    }
+  }
+
+  async function confirmCheckout(id) {
+    try {
+      const r = await api(`/visits/${id}/checkout/confirm`, {
+        method: "POST",
+        body: { passCode: passCodes[id] || undefined },
+      });
+      setMsg(r.message || `归档 ${r.archiveKey}`);
+      await load();
+    } catch (e) {
+      setMsg(e.message);
+    }
+  }
+
   return (
     <div className="gate-page">
       <header className="gate-head">
-        <h2>当前在场</h2>
-        <p className="muted">SLA {warn} 分钟超时高亮催离</p>
+        <h2>在场 / 离场双签</h2>
+        <p className="muted">SLA {warn} 分钟超时高亮 · 离场须司机+门岗双签后扫码确认</p>
       </header>
 
       {err && <div className="gate-toast bad">{err}</div>}
+      {msg && <div className="gate-toast">{msg}</div>}
 
       {!items.length && (
         <div className="card gate-empty">
-          <p className="muted">当前无在场车辆/自提</p>
+          <p className="muted">当前无在场 / 待签退车辆</p>
         </div>
       )}
 
@@ -47,8 +76,8 @@ export default function GateOnsite() {
           >
             <span className="gate-item-top">
               <span className="pill">{v.visit_type_label || v.visit_type}</span>
-              <span className={`pill ${v.dwell_over ? "warn" : "ok"}`}>
-                {v.dwell_over ? "超时" : "在场"}
+              <span className={`pill ${v.status === "departing" ? "warn" : v.dwell_over ? "warn" : "ok"}`}>
+                {v.status === "departing" ? "离场中" : v.dwell_over ? "超时" : "在场"}
               </span>
               <RiskPill level={v.risk_level} score={v.risk_score} />
             </span>
@@ -60,7 +89,43 @@ export default function GateOnsite() {
             <p className="muted" style={{ margin: "6px 0 0" }}>
               入场 {formatTime(v.onsite_at)} · 已停留 {v.dwell_minutes ?? stayText(v.onsite_at)}
               {v.dwell_over ? " · 请催促离场" : ""}
+              {v.pass_code ? ` · 码 ${v.pass_code}` : ""}
             </p>
+
+            {v.status === "departing" && v.ready_for_sign && (
+              <div style={{ marginTop: 10 }}>
+                <p className="muted">
+                  双签：司机 {v.checkout_signs?.driver ? "✓" : "○"} · 门岗{" "}
+                  {v.checkout_signs?.gate ? "✓" : "○"}
+                </p>
+                {!v.checkout_signs?.gate && (
+                  <button className="btn primary btn-block" type="button" onClick={() => gateSign(v.id)}>
+                    门岗签退
+                  </button>
+                )}
+                {v.both_signed && (
+                  <>
+                    <div className="field" style={{ marginTop: 8 }}>
+                      <label>通行码确认（可选）</label>
+                      <input
+                        value={passCodes[v.id] || ""}
+                        onChange={(e) =>
+                          setPassCodes((m) => ({ ...m, [v.id]: e.target.value.toUpperCase() }))
+                        }
+                        placeholder={v.pass_code || "输入通行码"}
+                      />
+                    </div>
+                    <button
+                      className="btn primary btn-block"
+                      type="button"
+                      onClick={() => confirmCheckout(v.id)}
+                    >
+                      扫码确认离场开闸
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </li>
         ))}
       </ul>

@@ -141,6 +141,8 @@ async function main() {
       });
       assert("准入评估可入场", access.allowed === true, JSON.stringify(access.lights));
 
+      const slots = await api("/meta/slots");
+      const slot = (slots.items || []).find((s) => s.available) || slots.items[0];
       const visit = await api("/visits", {
         method: "POST",
         body: {
@@ -148,6 +150,8 @@ async function main() {
           carrierId: user.carrier_id,
           driverId: user.driver_id,
           vehicleId,
+          slotStart: slot.slotStart,
+          slotEnd: slot.slotEnd,
         },
       });
       assert("创建预约", visit.visit?.status === "appointed", visit.visit?.id);
@@ -233,7 +237,13 @@ async function main() {
         method: "POST",
         body: { reason: "紧急保供", approverNote: "自检" },
       });
-      assert("例外放行", ex.ok && ex.visit.status === "onsite", ex.deviceResult?.ok);
+      assert("例外申请双签", ex.pendingApproval && ex.visit.status === "exception_requested");
+      const ehs = await asUser("13800000001", "ehs123");
+      const appr = await ehs.api("/visits/visit-demo-pending/exception/approve", {
+        method: "POST",
+        body: { approverNote: "自检批准" },
+      });
+      assert("例外放行", appr.ok && appr.visit.status === "onsite", appr.deviceResult?.ok);
 
       const lpr = await gate.api("/devices/lpr/simulate", {
         method: "POST",
@@ -250,6 +260,8 @@ async function main() {
   {
     try {
       const { user, api } = await asUser("13700000001", "pickup123");
+      const slots = await api("/meta/slots");
+      const slot = (slots.items || []).find((s) => s.available) || slots.items[0];
       const created = await api("/visits", {
         method: "POST",
         body: {
@@ -258,6 +270,8 @@ async function main() {
           customerPhone: user.phone,
           pickupRef: "PO-SELFCHECK-001",
           selectedOptions: ["invoicePrint"],
+          slotStart: slot.slotStart,
+          slotEnd: slot.slotEnd,
         },
       });
       assert("自提预约", created.visit?.visit_type === "self_pickup");
@@ -319,7 +333,91 @@ async function main() {
     }
   }
 
-  // 7. Bad login
+
+  // 7. Slots / risk / passCode / dual-approve
+  store.clear();
+  {
+    try {
+      const driver = await asUser("13900000002", "driver123");
+      const slots = await driver.api("/meta/slots");
+      assert("时段列表", Array.isArray(slots.items) && slots.items.length > 0, `n=${slots.items.length}`);
+      const slot = slots.items.find((s) => s.available) || slots.items[0];
+      const created = await driver.api("/visits", {
+        method: "POST",
+        body: {
+          visitType: "carrier",
+          carrierId: "carrier-1",
+          driverId: "driver-ok",
+          vehicleId: "veh-1",
+          slotStart: slot.slotStart,
+          slotEnd: slot.slotEnd,
+        },
+      });
+      assert("带时段预约", !!created.visit?.slot_start && created.access?.riskScore != null, `risk=${created.access?.riskScore}`);
+
+      // fill capacity
+      let blocked = false;
+      for (let i = 0; i < 8; i++) {
+        try {
+          await driver.api("/visits", {
+            method: "POST",
+            body: {
+              visitType: "carrier",
+              carrierId: "carrier-1",
+              driverId: "driver-ok",
+              vehicleId: "veh-1",
+              slotStart: slot.slotStart,
+              slotEnd: slot.slotEnd,
+            },
+          });
+        } catch (e) {
+          if (/已满/.test(e.message)) {
+            blocked = true;
+            break;
+          }
+        }
+      }
+      assert("时段满员拦截", blocked);
+
+      const checkin = await driver.api(`/visits/${created.visit.id}/checkin`, { method: "POST", body: {} });
+      assert("报到生成通行码", !!checkin.visit?.pass_code, checkin.visit?.pass_code);
+
+      const gate = await asUser("13800000002", "gate123");
+      const byCode = await gate.api(`/visits?passCode=${checkin.visit.pass_code}`);
+      assert("通行码查询", byCode.visit?.id === created.visit.id);
+
+      const lpr = await gate.api("/devices/lpr/simulate", {
+        method: "POST",
+        body: { plateNo: "沪A12345" },
+      });
+      assert("LPR匹配单据", !!lpr.matchedVisit, lpr.matchedVisit?.pass_code);
+
+      // dual approve on pending seed after clear+relogin uses fresh seed — use demo pending
+      store.clear();
+      const gate2 = await asUser("13800000002", "gate123");
+      const req = await gate2.api("/visits/visit-demo-pending/exception", {
+        method: "POST",
+        body: { reason: "自检双签" },
+      });
+      assert("门岗提交双签", req.pendingApproval === true && req.visit.status === "exception_requested");
+      const ehs = await asUser("13800000001", "ehs123");
+      const appr = await ehs.api("/visits/visit-demo-pending/exception/approve", {
+        method: "POST",
+        body: { approverNote: "同意" },
+      });
+      assert("EHS批准双签", appr.ok && appr.visit.status === "onsite");
+
+      const notes = await driver.api("/notifications");
+      assert("通知接口", Array.isArray(notes.items));
+      const kpi = await gate2.api("/gate/kpi");
+      assert("门岗KPI", typeof kpi.inspecting === "number");
+    } catch (e) {
+      fail("智能编排自检", e.stack || e.message);
+    }
+  }
+
+  // 8. Bad login
+  // 8. Bad login
   try {
     await mockApi("/auth/login", {
       method: "POST",

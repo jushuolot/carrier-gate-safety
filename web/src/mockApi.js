@@ -3,7 +3,7 @@
  * 数据落在 localStorage，刷新可续。
  */
 
-const STORE_KEY = "cgs-pages-demo-v3";
+const STORE_KEY = "cgs-pages-demo-v4";
 
 function addDays(n) {
   const d = new Date();
@@ -17,6 +17,115 @@ function now() {
 
 function nid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+function makePassCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
+}
+
+function slotCapacity(s) {
+  return Number(s.settings?.slot_capacity ?? 4);
+}
+
+function dwellWarnMinutes(s) {
+  return Number(s.settings?.dwell_warn_minutes ?? 90);
+}
+
+function dualApprove(s) {
+  return String(s.settings?.exception_dual_approve ?? "true") === "true";
+}
+
+function listSlots(s, dayIso) {
+  const day = dayIso || addDays(0);
+  const capacity = slotCapacity(s);
+  const slots = [];
+  for (let h = 8; h < 18; h++) {
+    for (const m of [0, 30]) {
+      const start = `${day}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+      const endMin = m + 30;
+      const endH = endMin >= 60 ? h + 1 : h;
+      const endM = endMin % 60;
+      const end = `${day}T${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}:00`;
+      const booked = s.visits.filter(
+        (v) => v.slot_start === start && !["rejected", "completed"].includes(v.status)
+      ).length;
+      slots.push({
+        slotStart: start,
+        slotEnd: end,
+        label: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}–${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`,
+        capacity,
+        booked,
+        remaining: Math.max(0, capacity - booked),
+        available: booked < capacity,
+      });
+    }
+  }
+  return slots;
+}
+
+function dwellMinutes(onsiteAt) {
+  if (!onsiteAt) return 0;
+  return Math.max(0, Math.round((Date.now() - new Date(onsiteAt).getTime()) / 60000));
+}
+
+function computeRisk(s, { allowed, reasons, training, driverId, carrierId, visitType }) {
+  if (visitType === "self_pickup") {
+    return { riskScore: 25, riskLevel: "low", riskFactors: ["自提轻量通道"], fastLane: true };
+  }
+  let score = 12;
+  const factors = [];
+  if (!allowed) {
+    score += 35;
+    factors.push("准入未通过");
+  }
+  for (const r of reasons || []) {
+    if (r.code?.includes("TRAINING")) {
+      score += 18;
+      factors.push("培训风险");
+    }
+    if (r.code?.includes("DOC")) {
+      score += 12;
+      factors.push(`证件风险`);
+    }
+  }
+  if (training?.valid_until) {
+    const daysLeft = Math.ceil((new Date(training.valid_until).getTime() - Date.now()) / 86400000);
+    if (daysLeft <= 30) {
+      score += 15;
+      factors.push(`培训${daysLeft}天内到期`);
+    }
+  } else if (!training) {
+    score += 10;
+    factors.push("无有效培训记录");
+  }
+  const priorOk = s.visits.filter((v) => v.driver_id === driverId && v.status === "completed").length;
+  if (priorOk === 0) {
+    score += 14;
+    factors.push("首次到场");
+  }
+  const priorBlocks = s.visits.filter(
+    (v) =>
+      v.carrier_id === carrierId &&
+      ["access_pending", "rejected"].includes(v.status) &&
+      (v.created_at || "").slice(0, 10) >= addDays(-30)
+  ).length;
+  if (priorBlocks > 0) {
+    score += Math.min(20, priorBlocks * 5);
+    factors.push(`承运商近30天拦截 ${priorBlocks} 次`);
+  }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  let riskLevel = "low";
+  if (score >= 60) riskLevel = "high";
+  else if (score >= 35) riskLevel = "medium";
+  return {
+    riskScore: score,
+    riskLevel,
+    riskFactors: [...new Set(factors)].slice(0, 6),
+    fastLane: riskLevel === "low" && allowed,
+  };
 }
 
 function seed() {
@@ -94,7 +203,7 @@ function seed() {
         carrier_id: "carrier-1",
         driver_id: "driver-ok",
         vehicle_id: "veh-1",
-        appointment_at: now(),
+        appointment_at: `${addDays(0)}T09:00:00`,
         checkin_at: now(),
         admitted_at: now(),
         status: "inspecting",
@@ -104,6 +213,11 @@ function seed() {
         customer_name: null,
         customer_phone: null,
         pickup_ref: null,
+        slot_start: `${addDays(0)}T09:00:00`,
+        slot_end: `${addDays(0)}T09:30:00`,
+        pass_code: "GATE01",
+        risk_score: 22,
+        risk_level: "low",
         created_at: now(),
         updated_at: now(),
       },
@@ -113,21 +227,32 @@ function seed() {
         carrier_id: "carrier-1",
         driver_id: "driver-new",
         vehicle_id: "veh-2",
-        appointment_at: now(),
+        appointment_at: `${addDays(0)}T10:00:00`,
         checkin_at: now(),
         status: "access_pending",
         block_reasons: [
-          { code: "TRAINING", message: "首次到场或培训失效：须完成安全视频并答题通过" },
+          { code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过" },
         ],
         visit_type: "carrier",
         selected_options: [],
         customer_name: null,
         customer_phone: null,
         pickup_ref: null,
+        slot_start: `${addDays(0)}T10:00:00`,
+        slot_end: `${addDays(0)}T10:30:00`,
+        pass_code: "WAIT88",
+        risk_score: 78,
+        risk_level: "high",
         created_at: now(),
         updated_at: now(),
       },
     ],
+    settings: {
+      device_mode: "mock",
+      exception_dual_approve: "true",
+      slot_capacity: 4,
+      dwell_warn_minutes: 90,
+    },
     audit: [],
     deviceEvents: [],
     devices: [
@@ -248,6 +373,8 @@ function enrichVisit(s, v) {
   const c = s.carriers.find((x) => x.id === v.carrier_id);
   const visitType = v.visit_type || "carrier";
   const selectedOptions = v.selected_options || [];
+  const mins = dwellMinutes(v.onsite_at);
+  const warn = dwellWarnMinutes(s);
   return {
     ...v,
     visit_type: visitType,
@@ -262,12 +389,16 @@ function enrichVisit(s, v) {
     inspection: v.inspection_json || null,
     departure: v.departure_json || null,
     exception: v.exception_note || null,
+    dwell_minutes: v.status === "onsite" || v.status === "departing" ? mins : null,
+    dwell_over: (v.status === "onsite" || v.status === "departing") && mins >= warn,
+    dwell_warn_minutes: warn,
+    fast_lane: v.risk_level === "low",
   };
 }
 
 function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", selectedOptions = [] }) {
   if (visitType === "self_pickup") {
-    return {
+    const base = {
       allowed: true,
       reasons: [],
       lights: { training: !selectedOptions.includes("safetyBrief"), documents: true, subject: true },
@@ -275,6 +406,17 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
       note: "自提走轻量准入；身份核验与提货单核对在门岗安检完成；勾选的可选步骤在离场收口强制完成",
       training: null,
       course: null,
+    };
+    return {
+      ...base,
+      ...computeRisk(s, {
+        allowed: true,
+        reasons: [],
+        training: null,
+        driverId,
+        carrierId,
+        visitType,
+      }),
     };
   }
   const reasons = [];
@@ -315,8 +457,17 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
   check("carrier", carrierId, need.carrier);
 
   const docsOk = !reasons.some((r) => r.code === "DOC_MISSING" || r.code === "DOC_EXPIRED");
+  const allowed = reasons.length === 0;
+  const risk = computeRisk(s, {
+    allowed,
+    reasons,
+    training: training || null,
+    driverId,
+    carrierId,
+    visitType,
+  });
   return {
-    allowed: reasons.length === 0,
+    allowed,
     reasons,
     lights: {
       training: trainingOk,
@@ -325,6 +476,7 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier", se
     },
     training: training || null,
     course: s.course,
+    ...risk,
   };
 }
 
@@ -411,15 +563,129 @@ export async function mockApi(path, options = {}) {
     });
   }
 
+  if (p === "/meta/slots") {
+    const day = q.day || addDays(0);
+    return ok({ day, capacity: slotCapacity(s), items: listSlots(s, day) });
+  }
+
+  if (p === "/meta/yard-config") {
+    return ok({
+      slotCapacity: slotCapacity(s),
+      dwellWarnMinutes: dwellWarnMinutes(s),
+      dualApprove: dualApprove(s),
+    });
+  }
+
   if (p === "/dashboard") {
     const today = addDays(0);
+    const warn = dwellWarnMinutes(s);
+    const onsiteRows = s.visits.filter((v) => v.status === "onsite");
     return ok({
-      onsite: s.visits.filter((v) => v.status === "onsite").length,
+      onsite: onsiteRows.length,
       todayAppointed: s.visits.filter((v) => (v.created_at || "").startsWith(today)).length,
       blocked: s.visits.filter((v) => ["access_pending", "rejected"].includes(v.status)).length,
       expiring30d: s.documents.filter((d) => d.expire_at && d.expire_at <= addDays(30)).length,
       expired: s.documents.filter((d) => d.expire_at && d.expire_at < addDays(0)).length,
+      exceptionRequested: s.visits.filter((v) => v.status === "exception_requested").length,
+      inspecting: s.visits.filter((v) => v.status === "inspecting").length,
+      accessPending: s.visits.filter((v) => v.status === "access_pending").length,
+      releasedToday: s.visits.filter(
+        (v) => ["onsite", "departing", "completed"].includes(v.status) && (v.onsite_at || "").startsWith(today)
+      ).length,
+      dwellOver: onsiteRows.filter((v) => dwellMinutes(v.onsite_at) >= warn).length,
+      dwellWarnMinutes: warn,
     });
+  }
+
+  if (p === "/gate/kpi") {
+    const warn = dwellWarnMinutes(s);
+    const onsiteRows = s.visits.filter((v) => v.status === "onsite");
+    return ok({
+      inspecting: s.visits.filter((v) => v.status === "inspecting").length,
+      accessPending: s.visits.filter((v) => v.status === "access_pending").length,
+      exceptionRequested: s.visits.filter((v) => v.status === "exception_requested").length,
+      dwellOver: onsiteRows.filter((v) => dwellMinutes(v.onsite_at) >= warn).length,
+      releasedToday: s.visits.filter(
+        (v) =>
+          ["onsite", "departing", "completed"].includes(v.status) &&
+          (v.onsite_at || v.admitted_at || "").startsWith(addDays(0))
+      ).length,
+      dwellWarnMinutes: warn,
+    });
+  }
+
+  if (p === "/notifications") {
+    const items = [];
+    if (user.role === "driver" && user.driver_id) {
+      const st = [...s.training]
+        .filter((t) => t.driver_id === user.driver_id && t.quiz_passed)
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+      if (!st) {
+        items.push({
+          id: "train-required",
+          level: "high",
+          title: "须完成安全培训",
+          body: "首次到场或培训失效，请先完成视频与答题。",
+          to: "/driver/training",
+        });
+      } else if (st.valid_until) {
+        const days = Math.ceil((new Date(st.valid_until).getTime() - Date.now()) / 86400000);
+        if (days <= 30) {
+          items.push({
+            id: "train-expiring",
+            level: days <= 7 ? "high" : "medium",
+            title: "培训即将到期",
+            body: `有效至 ${st.valid_until}（剩 ${days} 天）`,
+            to: "/driver/training",
+          });
+        }
+      }
+      const pending = s.visits.find((v) => v.driver_id === user.driver_id && v.status === "access_pending");
+      if (pending) {
+        items.push({
+          id: `block-${pending.id}`,
+          level: "high",
+          title: "报到被拦截",
+          body: pending.block_reasons?.[0]?.message || "请补齐培训或证件",
+          to: "/driver/visit",
+        });
+      }
+      const inspecting = s.visits.find((v) => v.driver_id === user.driver_id && v.status === "inspecting");
+      if (inspecting) {
+        items.push({
+          id: `ready-${inspecting.id}`,
+          level: "low",
+          title: "可入场 · 出示通行码",
+          body: inspecting.pass_code ? `通行码 ${inspecting.pass_code}` : "请驶至门岗安检",
+          to: "/driver/visit",
+        });
+      }
+      const onsite = s.visits.find((v) =>
+        v.driver_id === user.driver_id && ["onsite", "departing"].includes(v.status)
+      );
+      if (onsite && dwellMinutes(onsite.onsite_at) >= dwellWarnMinutes(s)) {
+        items.push({
+          id: `dwell-${onsite.id}`,
+          level: "medium",
+          title: "在场超时催离",
+          body: `已停留 ${dwellMinutes(onsite.onsite_at)} 分钟`,
+          to: "/driver/visit",
+        });
+      }
+    }
+    if (user.role === "ehs" || user.role === "admin") {
+      const n = s.visits.filter((v) => v.status === "exception_requested").length;
+      if (n > 0) {
+        items.push({
+          id: "dual-pending",
+          level: "high",
+          title: "待双签例外",
+          body: `${n} 单等待批准`,
+          to: "/admin",
+        });
+      }
+    }
+    return ok({ items });
   }
 
   if (p === "/carriers") return ok({ items: s.carriers });
@@ -546,14 +812,23 @@ export async function mockApi(path, options = {}) {
     return ok({ score, passed, passScore: s.course.pass_score, validUntil: record.valid_until, detail: [] });
   }
 
+
   if (p === "/access/evaluate" && method === "POST") {
     return ok(evaluate(s, body));
   }
 
   if (p === "/visits" && method === "GET") {
+    if (q.passCode) {
+      const hit = s.visits.find(
+        (v) => (v.pass_code || "").toUpperCase() === String(q.passCode).trim().toUpperCase()
+      );
+      if (!hit) fail("未找到通行码对应单据", 404);
+      const enriched = enrichVisit(s, hit);
+      return ok({ items: [enriched], visit: enriched });
+    }
     let items = s.visits.map((v) => enrichVisit(s, v));
     if (q.status) items = items.filter((v) => v.status === q.status);
-    items.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+    items.sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0) || (a.updated_at < b.updated_at ? 1 : -1));
     return ok({ items });
   }
 
@@ -562,17 +837,33 @@ export async function mockApi(path, options = {}) {
     if (type === "self_pickup" && (!body.customerName || !body.pickupRef)) {
       fail("自提须填写提货人姓名与提货单号");
     }
+    if (!body.slotStart || !body.slotEnd) fail("请选择到场时段");
+    const booked = s.visits.filter(
+      (v) => v.slot_start === body.slotStart && !["rejected", "completed"].includes(v.status)
+    ).length;
+    if (booked >= slotCapacity(s)) fail("该时段已满，请选择其他时段");
+
     const profile = VISIT_TYPES[type];
-    const allowed = new Set(profile.departOptional.map((x) => x.key));
-    const selected = (body.selectedOptions || []).filter((k) => allowed.has(k));
+    const allowedOpts = new Set(profile.departOptional.map((x) => x.key));
+    const selected = (body.selectedOptions || []).filter((k) => allowedOpts.has(k));
+    const cid = body.carrierId || (type === "self_pickup" ? "carrier-self" : null);
+    const did = body.driverId || (type === "self_pickup" ? "driver-pickup" : null);
+    const vid = body.vehicleId || (type === "self_pickup" ? "veh-pickup" : null);
+    const access = evaluate(s, {
+      driverId: did,
+      vehicleId: vid,
+      carrierId: cid,
+      visitType: type,
+      selectedOptions: selected,
+    });
     const id = nid();
     const v = {
       id,
       site_id: body.siteId || "site-1",
-      carrier_id: body.carrierId || (type === "self_pickup" ? "carrier-self" : null),
-      driver_id: body.driverId || (type === "self_pickup" ? "driver-pickup" : null),
-      vehicle_id: body.vehicleId || (type === "self_pickup" ? "veh-pickup" : null),
-      appointment_at: body.appointmentAt || now(),
+      carrier_id: cid,
+      driver_id: did,
+      vehicle_id: vid,
+      appointment_at: body.slotStart || body.appointmentAt || now(),
       status: "appointed",
       block_reasons: null,
       visit_type: type,
@@ -580,16 +871,23 @@ export async function mockApi(path, options = {}) {
       customer_name: body.customerName || null,
       customer_phone: body.customerPhone || null,
       pickup_ref: body.pickupRef || null,
+      slot_start: body.slotStart,
+      slot_end: body.slotEnd,
+      pass_code: null,
+      risk_score: access.riskScore,
+      risk_level: access.riskLevel,
       created_at: now(),
       updated_at: now(),
     };
     s.visits.unshift(v);
-    audit(s, user, "visit.create", "visit", id, { visitType: type, selected });
+    audit(s, user, "visit.create", "visit", id, { visitType: type, selected, slotStart: body.slotStart });
     save(s);
-    return ok({ visit: enrichVisit(s, v) });
+    return ok({ visit: enrichVisit(s, v), access });
   }
 
-  const visitMatch = p.match(/^\/visits\/([^/]+)(?:\/(checkin|inspect|depart|exception))?$/);
+  const visitMatch = p.match(
+    /^\/visits\/([^/]+)(?:\/(checkin|inspect|depart|exception(?:\/approve|\/reject)?))?$/
+  );
   if (visitMatch) {
     const visit = s.visits.find((v) => v.id === visitMatch[1]);
     if (!visit) fail("到访单不存在", 404);
@@ -622,6 +920,9 @@ export async function mockApi(path, options = {}) {
       });
       visit.checkin_at = now();
       visit.updated_at = now();
+      visit.pass_code = visit.pass_code || makePassCode();
+      visit.risk_score = access.riskScore;
+      visit.risk_level = access.riskLevel;
       if (!access.allowed) {
         visit.status = "access_pending";
         visit.block_reasons = access.reasons;
@@ -641,28 +942,39 @@ export async function mockApi(path, options = {}) {
       const pass =
         body.pass !== false &&
         profile.inspectChecklist.every((c) => checklist[c.key] === true);
-      visit.updated_at = now();
-      visit.inspection_json = { checklist, pass, at: now() };
+      const at = now();
+      const evidence = {
+        checklist,
+        checkedAt: Object.fromEntries(Object.keys(checklist).map((k) => [k, checklist[k] ? at : null])),
+        pass,
+        at,
+        by: user.name,
+        snapshot: { ok: true, mock: true, url: `mock://snap/${visit.id}`, at },
+        riskScore: visit.risk_score,
+        riskLevel: visit.risk_level,
+      };
+      visit.updated_at = at;
+      visit.inspection_json = evidence;
       if (!pass) {
         visit.status = "rejected";
         save(s);
         return ok({ ok: false, visit: enrichVisit(s, visit) });
       }
       visit.status = "onsite";
-      visit.onsite_at = now();
-      const deviceResult = { ok: true, gate: "open", txnId: nid(), at: now() };
+      visit.onsite_at = at;
+      const deviceResult = { ok: true, gate: "open", txnId: nid(), at };
       deviceEvent(s, "barrier", "barrier-in-1", "opened", deviceResult);
       audit(s, user, "visit.admit", "visit", visit.id, { deviceResult });
       save(s);
-      return ok({ ok: true, visit: enrichVisit(s, visit), deviceResult });
+      return ok({ ok: true, visit: enrichVisit(s, visit), deviceResult, evidence });
     }
 
     if (action === "depart" && method === "POST") {
       const visitType = visit.visit_type || "carrier";
       const selectedOptions = visit.selected_options || [];
       const required = resolveDepartSteps(visitType, selectedOptions);
-      const steps = Object.fromEntries(required.map((s) => [s.key, !!(body[s.key] ?? body.steps?.[s.key])]));
-      const missing = required.filter((s) => !steps[s.key]).map((s) => s.key);
+      const steps = Object.fromEntries(required.map((step) => [step.key, !!(body[step.key] ?? body.steps?.[step.key])]));
+      const missing = required.filter((step) => !steps[step.key]).map((step) => step.key);
       visit.updated_at = now();
       if (missing.length) {
         visit.status = "departing";
@@ -689,15 +1001,77 @@ export async function mockApi(path, options = {}) {
     }
 
     if (action === "exception" && method === "POST") {
+      if (!body.reason) fail("须填写例外原因");
+      const note = {
+        reason: body.reason,
+        approverNote: body.approverNote || null,
+        requestedBy: user.name,
+        requestedById: user.id,
+        requestedAt: now(),
+        status: dualApprove(s) ? "pending" : "approved",
+      };
+      if (dualApprove(s) && user.role === "gate") {
+        visit.status = "exception_requested";
+        visit.exception_note = note;
+        visit.updated_at = now();
+        audit(s, user, "visit.exception_request", "visit", visit.id, note);
+        save(s);
+        return ok({
+          ok: true,
+          pendingApproval: true,
+          visit: enrichVisit(s, visit),
+          message: "已提交双签例外，等待 EHS/管理员批准",
+        });
+      }
+      note.approvedBy = user.name;
+      note.approvedAt = now();
+      note.status = "approved";
       visit.status = "onsite";
       visit.onsite_at = now();
+      visit.exception_note = note;
       visit.updated_at = now();
-      visit.exception_note = { reason: body.reason, approverNote: body.approverNote, by: user.name, at: now() };
       const deviceResult = { ok: true, gate: "open", txnId: nid(), exception: true };
       deviceEvent(s, "barrier", "barrier-in-1", "opened", deviceResult);
-      audit(s, user, "visit.exception", "visit", visit.id, visit.exception_note);
+      audit(s, user, "visit.exception", "visit", visit.id, note);
+      save(s);
+      return ok({ ok: true, pendingApproval: false, visit: enrichVisit(s, visit), deviceResult });
+    }
+
+    if (action === "exception/approve" && method === "POST") {
+      if (visit.status !== "exception_requested") fail(`当前状态不可批准: ${visit.status}`);
+      const note = {
+        ...(visit.exception_note || {}),
+        approvedBy: user.name,
+        approvedAt: now(),
+        status: "approved",
+        approverNote: body.approverNote || null,
+      };
+      visit.status = "onsite";
+      visit.onsite_at = now();
+      visit.exception_note = note;
+      visit.updated_at = now();
+      const deviceResult = { ok: true, gate: "open", txnId: nid(), exception: true };
+      deviceEvent(s, "barrier", "barrier-in-1", "opened", deviceResult);
+      audit(s, user, "visit.exception_approve", "visit", visit.id, note);
       save(s);
       return ok({ ok: true, visit: enrichVisit(s, visit), deviceResult });
+    }
+
+    if (action === "exception/reject" && method === "POST") {
+      if (visit.status !== "exception_requested") fail(`当前状态不可驳回: ${visit.status}`);
+      const note = {
+        ...(visit.exception_note || {}),
+        rejectedBy: user.name,
+        rejectedAt: now(),
+        status: "rejected",
+        rejectReason: body.reason || "未批准",
+      };
+      visit.status = "access_pending";
+      visit.exception_note = note;
+      visit.updated_at = now();
+      audit(s, user, "visit.exception_reject", "visit", visit.id, note);
+      save(s);
+      return ok({ ok: true, visit: enrichVisit(s, visit) });
     }
   }
 
@@ -720,9 +1094,18 @@ export async function mockApi(path, options = {}) {
   if (p === "/devices/lpr/simulate" && method === "POST") {
     const captured = { ok: true, plateNo: body.plateNo || "沪A12345", confidence: 0.96, at: now() };
     const vehicle = s.vehicles.find((v) => v.plate_no === captured.plateNo) || null;
+    let matchedVisit = null;
+    if (vehicle) {
+      const hit = s.visits.find(
+        (v) =>
+          v.vehicle_id === vehicle.id &&
+          ["inspecting", "access_pending", "exception_requested", "appointed"].includes(v.status)
+      );
+      if (hit) matchedVisit = enrichVisit(s, hit);
+    }
     deviceEvent(s, "lpr", "lpr-gate-1", "plate_captured", captured);
     save(s);
-    return ok({ captured, vehicle });
+    return ok({ captured, vehicle, matchedVisit });
   }
 
   if (p === "/audit") return ok({ items: s.audit.slice(0, 200) });
@@ -730,6 +1113,7 @@ export async function mockApi(path, options = {}) {
 
   fail(`未实现的演示接口: ${method} ${p}`, 404);
 }
+
 
 export function isPagesDemo() {
   if (import.meta.env.VITE_DEMO_MOCK === "true") return true;

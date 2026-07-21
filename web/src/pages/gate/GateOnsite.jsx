@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { RiskPill } from "../../components/PassCode";
 
-/** 门岗只看在场清单，方便催离场；不做后台分析 */
 export default function GateOnsite() {
   const [items, setItems] = useState([]);
+  const [warn, setWarn] = useState(90);
   const [err, setErr] = useState("");
 
   async function load() {
-    const d = await api("/visits?status=onsite");
+    const [d, cfg] = await Promise.all([
+      api("/visits?status=onsite"),
+      api("/meta/yard-config").catch(() => ({ dwellWarnMinutes: 90 })),
+    ]);
     setItems(d.items);
+    setWarn(cfg.dwellWarnMinutes || 90);
   }
 
   useEffect(() => {
@@ -23,7 +28,7 @@ export default function GateOnsite() {
     <div className="gate-page">
       <header className="gate-head">
         <h2>当前在场</h2>
-        <p className="muted">班次盯梢：超时停留可口头催促</p>
+        <p className="muted">SLA {warn} 分钟超时高亮催离</p>
       </header>
 
       {err && <div className="gate-toast bad">{err}</div>}
@@ -36,10 +41,16 @@ export default function GateOnsite() {
 
       <ul className="gate-list">
         {items.map((v) => (
-          <li key={v.id} className="card gate-onsite-card">
+          <li
+            key={v.id}
+            className={`card gate-onsite-card ${v.dwell_over ? "dwell-over" : ""}`}
+          >
             <span className="gate-item-top">
               <span className="pill">{v.visit_type_label || v.visit_type}</span>
-              <span className="pill ok">在场</span>
+              <span className={`pill ${v.dwell_over ? "warn" : "ok"}`}>
+                {v.dwell_over ? "超时" : "在场"}
+              </span>
+              <RiskPill level={v.risk_level} score={v.risk_score} />
             </span>
             <strong>
               {v.visit_type === "self_pickup"
@@ -47,7 +58,8 @@ export default function GateOnsite() {
                 : `${v.plate_no} · ${v.driver_name}`}
             </strong>
             <p className="muted" style={{ margin: "6px 0 0" }}>
-              入场 {formatTime(v.onsite_at)} · 已停留 {stayText(v.onsite_at)}
+              入场 {formatTime(v.onsite_at)} · 已停留 {v.dwell_minutes ?? stayText(v.onsite_at)}
+              {v.dwell_over ? " · 请催促离场" : ""}
             </p>
           </li>
         ))}

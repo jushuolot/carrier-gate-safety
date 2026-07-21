@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
 import { LogoutButton } from "../../components";
+import { RiskPill } from "../../components/PassCode";
 
 const ACTIONS = [
   {
@@ -17,7 +18,7 @@ const ACTIONS = [
   {
     to: "/driver/visit",
     title: "到离场报到",
-    desc: "预约、报到、离场收口",
+    desc: "约时段 · 通行码 · 离场",
   },
 ];
 
@@ -27,6 +28,7 @@ export default function DriverHome() {
   const carrierId = user?.carrier_id;
   const [status, setStatus] = useState(null);
   const [access, setAccess] = useState(null);
+  const [notes, setNotes] = useState([]);
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -34,20 +36,19 @@ export default function DriverHome() {
     let cancelled = false;
     (async () => {
       try {
-        const st = await api(`/training/status?driverId=${driverId}`);
+        const [st, vehicles, n] = await Promise.all([
+          api(`/training/status?driverId=${driverId}`),
+          api(`/vehicles?carrierId=${carrierId}`),
+          api("/notifications"),
+        ]);
         if (cancelled) return;
         setStatus(st);
-        const vehicles = await api(`/vehicles?carrierId=${carrierId}`);
-        if (cancelled) return;
+        setNotes(n.items || []);
         const vehicleId = vehicles.items[0]?.id;
         if (vehicleId) {
           const ev = await api("/access/evaluate", {
             method: "POST",
-            body: {
-              driverId,
-              vehicleId,
-              carrierId,
-            },
+            body: { driverId, vehicleId, carrierId },
           });
           if (!cancelled) setAccess(ev);
         }
@@ -94,14 +95,30 @@ export default function DriverHome() {
         <LogoutButton />
       </header>
 
+      {notes.length > 0 && (
+        <ul className="notify-list">
+          {notes.map((n) => (
+            <li key={n.id} className={`notify-item ${n.level}`}>
+              <Link to={n.to || "/driver"}>
+                <strong>{n.title}</strong>
+                <span className="muted">{n.body}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <section className="status-panel" aria-label="准入状态">
         <div className="status-panel-top">
           <h2>准入三灯</h2>
-          {access && (
-            <span className={`status-flag ${access.allowed ? "ok" : "bad"}`}>
-              {access.allowed ? "可入场" : "暂不可入"}
-            </span>
-          )}
+          <div className="row" style={{ gap: 6 }}>
+            {access && <RiskPill level={access.riskLevel} score={access.riskScore} />}
+            {access && (
+              <span className={`status-flag ${access.allowed ? "ok" : "bad"}`}>
+                {access.allowed ? "可入场" : "暂不可入"}
+              </span>
+            )}
+          </div>
         </div>
 
         <ul className="status-list">
@@ -114,6 +131,9 @@ export default function DriverHome() {
           ))}
         </ul>
 
+        {access?.riskFactors?.length > 0 && (
+          <p className="status-note">风险因子：{access.riskFactors.join("、")}</p>
+        )}
         {access && !access.allowed && (
           <ul className="status-reasons">
             {access.reasons.map((r, i) => (

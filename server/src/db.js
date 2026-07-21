@@ -174,4 +174,9 @@ export function migrate() {
   addCol("customer_name", "customer_name TEXT");
   addCol("customer_phone", "customer_phone TEXT");
   addCol("pickup_ref", "pickup_ref TEXT");
+  addCol("slot_start", "slot_start TEXT");
+  addCol("slot_end", "slot_end TEXT");
+  addCol("pass_code", "pass_code TEXT");
+  addCol("risk_score", "risk_score INTEGER");
+  addCol("risk_level", "risk_level TEXT");
 }

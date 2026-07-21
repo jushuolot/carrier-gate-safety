@@ -6,6 +6,7 @@ const STATUS_LABEL = {
   checked_in: "已报到",
   access_pending: "待准入",
   inspecting: "安检中",
+  exception_requested: "待双签",
   onsite: "在场",
   departing: "离场中",
   completed: "已完成",

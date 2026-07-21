@@ -181,29 +181,62 @@ db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
   "exception_dual_approve",
   "true"
 );
+db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run("slot_capacity", "4");
+db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run("dwell_warn_minutes", "90");
 
-// 门岗演示待办
+const day = now.slice(0, 10);
+const slotA = `${day}T09:00:00`;
+const slotAEnd = `${day}T09:30:00`;
+const slotB = `${day}T10:00:00`;
+const slotBEnd = `${day}T10:30:00`;
+
+// 门岗演示待办：低风险安检中 + 高风险待准入
 db.prepare(
   `INSERT INTO visits
    (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
-    checkin_at, admitted_at, visit_type, selected_options, created_at, updated_at)
-   VALUES (?, ?, ?, ?, ?, ?, 'inspecting', NULL, ?, ?, 'carrier', '[]', ?, ?)`
-).run("visit-demo-inspect", siteId, carrierId, driverOk, veh1, now, now, now, now, now);
+    checkin_at, admitted_at, visit_type, selected_options, slot_start, slot_end,
+    pass_code, risk_score, risk_level, created_at, updated_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'inspecting', NULL, ?, ?, 'carrier', '[]', ?, ?, ?, ?, ?, ?, ?)`
+).run(
+  "visit-demo-inspect",
+  siteId,
+  carrierId,
+  driverOk,
+  veh1,
+  slotA,
+  now,
+  now,
+  slotA,
+  slotAEnd,
+  "GATE01",
+  22,
+  "low",
+  now,
+  now
+);
 
 db.prepare(
   `INSERT INTO visits
    (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
-    checkin_at, visit_type, selected_options, created_at, updated_at)
-   VALUES (?, ?, ?, ?, ?, ?, 'access_pending', ?, ?, 'carrier', '[]', ?, ?)`
+    checkin_at, visit_type, selected_options, slot_start, slot_end,
+    pass_code, risk_score, risk_level, created_at, updated_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'access_pending', ?, ?, 'carrier', '[]', ?, ?, ?, ?, ?, ?, ?)`
 ).run(
   "visit-demo-pending",
   siteId,
   carrierId,
   driverNew,
   veh2,
+  slotB,
+  JSON.stringify([
+    { code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过" },
+  ]),
   now,
-  JSON.stringify([{ code: "TRAINING", message: "首次到场或培训失效：须完成安全视频并答题通过" }]),
-  now,
+  slotB,
+  slotBEnd,
+  "WAIT88",
+  78,
+  "high",
   now,
   now
 );
@@ -213,4 +246,4 @@ console.log("Site:", siteId);
 console.log("Drivers: 13900000001 (首次) / 13900000002 (已准入)");
 console.log("Self-pickup: 13700000001 / pickup123");
 console.log("Gate: 13800000002 / gate123");
-console.log("Demo visits: inspecting + access_pending");
+console.log("Demo visits: inspecting(GATE01) + access_pending(WAIT88)");

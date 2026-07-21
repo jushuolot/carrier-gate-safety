@@ -110,6 +110,9 @@ async function main() {
     const token = me.token;
     const vehicles = await api(`/vehicles?carrierId=${me.user.carrier_id}`, { token });
     const vehicleId = vehicles.items[0]?.id;
+    const slots = await api("/meta/slots", { token });
+    const slot = (slots.items || []).find((s) => s.available) || slots.items?.[0];
+    assert("时段接口", !!slot?.slotStart);
     const created = await api("/visits", {
       method: "POST",
       token,
@@ -118,6 +121,8 @@ async function main() {
         carrierId: me.user.carrier_id,
         driverId: me.user.driver_id,
         vehicleId,
+        slotStart: slot.slotStart,
+        slotEnd: slot.slotEnd,
       },
     });
     assert("熟手创建预约", !!created.visit?.id);

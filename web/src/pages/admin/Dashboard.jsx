@@ -1,20 +1,63 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
+import { RiskPill } from "../../components/PassCode";
 
-/** 后台看板：看风险与合规，不代替门岗放行 */
 export default function Dashboard() {
   const user = getUser();
   const [dash, setDash] = useState(null);
   const [expiring, setExpiring] = useState([]);
+  const [exceptions, setExceptions] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    setDash(await api("/dashboard"));
+    const d = await api("/documents/expiring?days=14");
+    setExpiring((d.items || []).slice(0, 8));
+    if (user?.role === "admin" || user?.role === "ehs") {
+      const ex = await api("/visits?status=exception_requested");
+      setExceptions(ex.items || []);
+    }
+  }
 
   useEffect(() => {
-    (async () => {
-      setDash(await api("/dashboard"));
-      const d = await api("/documents/expiring?days=14");
-      setExpiring((d.items || []).slice(0, 8));
-    })().catch(console.error);
-  }, []);
+    load().catch(console.error);
+  }, [user?.role]);
+
+  async function approve(id) {
+    setBusy(true);
+    setMsg("");
+    try {
+      await api(`/visits/${id}/exception/approve`, {
+        method: "POST",
+        body: { approverNote: "EHS 批准" },
+      });
+      setMsg("已批准例外并开闸");
+      await load();
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject(id) {
+    setBusy(true);
+    setMsg("");
+    try {
+      await api(`/visits/${id}/exception/reject`, {
+        method: "POST",
+        body: { reason: "证据不足" },
+      });
+      setMsg("已驳回，单据回待准入");
+      await load();
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!dash) return <p className="muted">加载中…</p>;
 
@@ -22,16 +65,18 @@ export default function Dashboard() {
     <div>
       <h2 style={{ marginTop: 0 }}>运营看板</h2>
       <p className="muted">
-        关注资质风险与本日吞吐。
+        智能场站：风险 · 时段 · 双签 · SLA。
         {user?.role === "admin" || user?.role === "ehs" ? (
           <>
             {" "}
-            当班安检/开闸请到 <Link to="/gate">门岗作业台</Link>。
+            当班放行请到 <Link to="/gate">门岗指挥台</Link>。
           </>
         ) : (
           " 现场放行由门岗处理。"
         )}
       </p>
+
+      {msg && <div className="gate-toast ok">{msg}</div>}
 
       <div className="grid stats">
         <div className="card stat">
@@ -43,18 +88,59 @@ export default function Dashboard() {
           <div className="v">{dash.todayAppointed}</div>
         </div>
         <div className="card stat">
-          <div className="l">今日拦截</div>
-          <div className="v">{dash.blocked}</div>
+          <div className="l">待安检</div>
+          <div className="v">{dash.inspecting ?? 0}</div>
+        </div>
+        <div className="card stat">
+          <div className="l">待双签</div>
+          <div className="v">{dash.exceptionRequested ?? 0}</div>
+        </div>
+        <div className="card stat">
+          <div className="l">超时在场</div>
+          <div className="v">{dash.dwellOver ?? 0}</div>
         </div>
         <div className="card stat">
           <div className="l">30 天内到期</div>
           <div className="v">{dash.expiring30d}</div>
         </div>
-        <div className="card stat">
-          <div className="l">已过期证件</div>
-          <div className="v">{dash.expired}</div>
-        </div>
       </div>
+
+      {(user?.role === "admin" || user?.role === "ehs") && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <strong>待双签例外</strong>
+          <p className="muted">门岗申请后须 EHS/管理员批准方可开闸</p>
+          {!exceptions.length && <p className="muted">暂无待批</p>}
+          <ul className="gate-list" style={{ marginTop: 10 }}>
+            {exceptions.map((v) => (
+              <li key={v.id} className="card" style={{ padding: 14 }}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <strong>
+                    {v.plate_no || v.customer_name} · {v.driver_name}
+                  </strong>
+                  <RiskPill level={v.risk_level} score={v.risk_score} />
+                </div>
+                <p className="muted" style={{ margin: "6px 0 10px" }}>
+                  {v.exception?.reason || "例外申请"}
+                  {v.pass_code ? ` · 码 ${v.pass_code}` : ""}
+                </p>
+                <div className="row">
+                  <button
+                    className="btn primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => approve(v.id)}
+                  >
+                    批准开闸
+                  </button>
+                  <button className="btn danger" type="button" disabled={busy} onClick={() => reject(v.id)}>
+                    驳回
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-2" style={{ marginTop: 16 }}>
         <div className="card">
@@ -93,20 +179,20 @@ export default function Dashboard() {
         </div>
 
         <div className="card">
-          <strong>后台职责边界</strong>
+          <strong>智能编排能力</strong>
           <ul style={{ marginTop: 10, paddingLeft: 18, lineHeight: 1.7 }}>
-            <li>配置与查看主数据、证件到期、审计证据</li>
-            <li>查阅到离场台账（历史与筛选），不在此点开闸</li>
-            <li>设备对接状态与厂商适配联调</li>
-            <li>门岗负责：待办队列、安检清单、放行/拒绝</li>
+            <li>预约时段容量控制</li>
+            <li>动态风险评分与快速通道提示</li>
+            <li>通行码 + LPR 自动匹配</li>
+            <li>双签例外与在场 SLA 催离</li>
           </ul>
           <div className="row" style={{ marginTop: 12 }}>
             <Link className="btn" to="/admin/visits">
               打开台账
             </Link>
             {(user?.role === "admin" || user?.role === "ehs") && (
-              <Link className="btn" to="/admin/audit">
-                审计日志
+              <Link className="btn" to="/gate">
+                门岗指挥台
               </Link>
             )}
           </div>

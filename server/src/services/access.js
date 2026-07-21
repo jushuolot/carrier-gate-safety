@@ -1,4 +1,5 @@
 import { db } from "../db.js";
+import { computeRisk } from "./yardOps.js";
 
 const REQUIRED_DRIVER_DOCS = ["driver_license", "qualification"];
 const REQUIRED_VEHICLE_DOCS = ["vehicle_license", "insurance"];
@@ -32,8 +33,7 @@ function validDocs(subjectType, subjectId, required) {
 }
 
 /**
- * 准入判定
- * @param {{ siteId, driverId, vehicleId, carrierId, visitType?: string, selectedOptions?: string[] }} args
+ * 准入判定 + 动态风险评分
  */
 export function evaluateAccess({
   siteId,
@@ -43,7 +43,6 @@ export function evaluateAccess({
   visitType = "carrier",
   selectedOptions = [],
 }) {
-  // 客户自提：轻量准入（身份/单据在门岗安检勾选；可选短训在离场步骤约束）
   if (visitType === "self_pickup") {
     const reasons = [];
     if (vehicleId) {
@@ -52,7 +51,7 @@ export function evaluateAccess({
         reasons.push({ code: "VEHICLE_BLOCKED", message: "车辆状态不可用" });
       }
     }
-    return {
+    const base = {
       allowed: reasons.length === 0,
       reasons,
       lights: {
@@ -64,6 +63,17 @@ export function evaluateAccess({
       course: null,
       mode: "self_pickup",
       note: "自提走轻量准入；身份核验与提货单核对在门岗安检完成；勾选的可选步骤在离场收口强制完成",
+    };
+    return {
+      ...base,
+      ...computeRisk({
+        allowed: base.allowed,
+        reasons,
+        training: null,
+        driverId,
+        carrierId,
+        visitType,
+      }),
     };
   }
 
@@ -149,8 +159,18 @@ export function evaluateAccess({
     carrierDocs.missing.length === 0 &&
     carrierDocs.expired.length === 0;
 
+  const allowed = reasons.length === 0;
+  const risk = computeRisk({
+    allowed,
+    reasons,
+    training,
+    driverId,
+    carrierId,
+    visitType,
+  });
+
   return {
-    allowed: reasons.length === 0,
+    allowed,
     reasons,
     lights: {
       training: trainingOk,
@@ -162,14 +182,15 @@ export function evaluateAccess({
     training,
     course,
     mode: "carrier",
+    ...risk,
   };
 }
 
 export const VISIT_FLOW = [
   "appointed",
-  "checked_in",
   "access_pending",
   "inspecting",
+  "exception_requested",
   "onsite",
   "departing",
   "completed",

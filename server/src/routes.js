@@ -13,6 +13,16 @@ import {
   normalizeSelectedOptions,
   resolveDepartSteps,
 } from "./services/visitProfiles.js";
+import {
+  assertSlotAvailable,
+  dualApproveEnabled,
+  dwellMinutes,
+  dwellWarnMinutes,
+  isDwellOver,
+  listSlotsForDay,
+  makePassCode,
+  slotCapacity,
+} from "./services/yardOps.js";
 
 export function createApiRouter({ deviceHub }) {
   const router = express.Router();
@@ -50,6 +60,23 @@ export function createApiRouter({ deviceHub }) {
     res.json({ items: listVisitTypeMeta() });
   });
 
+  router.get("/meta/slots", auth, (req, res) => {
+    const day = req.query.day || new Date().toISOString().slice(0, 10);
+    res.json({
+      day,
+      capacity: slotCapacity(),
+      items: listSlotsForDay(day),
+    });
+  });
+
+  router.get("/meta/yard-config", auth, (_req, res) => {
+    res.json({
+      slotCapacity: slotCapacity(),
+      dwellWarnMinutes: dwellWarnMinutes(),
+      dualApprove: dualApproveEnabled(),
+    });
+  });
+
   // ---- dashboard ----
   router.get("/dashboard", auth, (_req, res) => {
     const onsite = db
@@ -78,6 +105,26 @@ export function createApiRouter({ deviceHub }) {
          WHERE status = 'valid' AND expire_at IS NOT NULL AND expire_at < date('now')`
       )
       .get().c;
+    const exceptionRequested = db
+      .prepare(`SELECT COUNT(*) AS c FROM visits WHERE status = 'exception_requested'`)
+      .get().c;
+    const inspecting = db
+      .prepare(`SELECT COUNT(*) AS c FROM visits WHERE status = 'inspecting'`)
+      .get().c;
+    const accessPending = db
+      .prepare(`SELECT COUNT(*) AS c FROM visits WHERE status = 'access_pending'`)
+      .get().c;
+    const releasedToday = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM visits
+         WHERE status IN ('onsite','departing','completed')
+           AND date(onsite_at) = date('now')`
+      )
+      .get().c;
+    const onsiteRows = db
+      .prepare(`SELECT onsite_at FROM visits WHERE status = 'onsite'`)
+      .all();
+    const dwellOver = onsiteRows.filter((r) => isDwellOver(r.onsite_at)).length;
 
     res.json({
       onsite,
@@ -85,7 +132,149 @@ export function createApiRouter({ deviceHub }) {
       blocked,
       expiring30d: expiring,
       expired,
+      exceptionRequested,
+      inspecting,
+      accessPending,
+      releasedToday,
+      dwellOver,
+      dwellWarnMinutes: dwellWarnMinutes(),
     });
+  });
+
+  router.get("/gate/kpi", auth, role("gate", "ehs", "admin"), (_req, res) => {
+    const inspecting = db
+      .prepare(`SELECT COUNT(*) AS c FROM visits WHERE status = 'inspecting'`)
+      .get().c;
+    const accessPending = db
+      .prepare(`SELECT COUNT(*) AS c FROM visits WHERE status = 'access_pending'`)
+      .get().c;
+    const exceptionRequested = db
+      .prepare(`SELECT COUNT(*) AS c FROM visits WHERE status = 'exception_requested'`)
+      .get().c;
+    const onsiteRows = db
+      .prepare(`SELECT onsite_at FROM visits WHERE status = 'onsite'`)
+      .all();
+    const dwellOver = onsiteRows.filter((r) => isDwellOver(r.onsite_at)).length;
+    const releasedToday = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM visits
+         WHERE status IN ('onsite','departing','completed')
+           AND date(COALESCE(onsite_at, admitted_at)) = date('now')`
+      )
+      .get().c;
+    res.json({
+      inspecting,
+      accessPending,
+      exceptionRequested,
+      dwellOver,
+      releasedToday,
+      dwellWarnMinutes: dwellWarnMinutes(),
+    });
+  });
+
+  router.get("/notifications", auth, (req, res) => {
+    const items = [];
+    const user = req.user;
+    if (user.role === "driver" && user.driver_id) {
+      const st = db
+        .prepare(
+          `SELECT tr.*, c.valid_days FROM training_records tr
+           JOIN training_courses c ON c.id = tr.course_id
+           WHERE tr.driver_id = ? AND tr.quiz_passed = 1
+           ORDER BY tr.created_at DESC LIMIT 1`
+        )
+        .get(user.driver_id);
+      if (!st) {
+        items.push({
+          id: "train-required",
+          level: "high",
+          title: "须完成安全培训",
+          body: "首次到场或培训失效，请先完成视频与答题。",
+          to: "/driver/training",
+        });
+      } else if (st.valid_until) {
+        const days = Math.ceil(
+          (new Date(st.valid_until).getTime() - Date.now()) / 86400000
+        );
+        if (days <= 30) {
+          items.push({
+            id: "train-expiring",
+            level: days <= 7 ? "high" : "medium",
+            title: "培训即将到期",
+            body: `有效至 ${st.valid_until}（剩 ${days} 天）`,
+            to: "/driver/training",
+          });
+        }
+      }
+
+      const pending = db
+        .prepare(
+          `SELECT * FROM visits WHERE driver_id = ? AND status = 'access_pending'
+           ORDER BY updated_at DESC LIMIT 1`
+        )
+        .get(user.driver_id);
+      if (pending) {
+        const reasons = safeJson(pending.block_reasons) || [];
+        items.push({
+          id: `block-${pending.id}`,
+          level: "high",
+          title: "报到被拦截",
+          body: reasons[0]?.message || "请补齐培训或证件后重新报到",
+          to: "/driver/visit",
+        });
+      }
+
+      const inspecting = db
+        .prepare(
+          `SELECT * FROM visits WHERE driver_id = ? AND status = 'inspecting'
+           ORDER BY updated_at DESC LIMIT 1`
+        )
+        .get(user.driver_id);
+      if (inspecting) {
+        items.push({
+          id: `ready-${inspecting.id}`,
+          level: "low",
+          title: "可入场 · 出示通行码",
+          body: inspecting.pass_code
+            ? `通行码 ${inspecting.pass_code}，请驶至门岗安检`
+            : "请驶至门岗完成安检",
+          to: "/driver/visit",
+        });
+      }
+
+      const onsite = db
+        .prepare(
+          `SELECT * FROM visits WHERE driver_id = ? AND status IN ('onsite','departing')
+           ORDER BY updated_at DESC LIMIT 1`
+        )
+        .get(user.driver_id);
+      if (onsite && isDwellOver(onsite.onsite_at)) {
+        items.push({
+          id: `dwell-${onsite.id}`,
+          level: "medium",
+          title: "在场超时催离",
+          body: `已停留 ${dwellMinutes(onsite.onsite_at)} 分钟，请尽快完成离场收口`,
+          to: "/driver/visit",
+        });
+      }
+    }
+
+    if (user.role === "ehs" || user.role === "admin") {
+      const n = db
+        .prepare(`SELECT COUNT(*) AS c FROM visits WHERE status = 'exception_requested'`)
+        .get().c;
+      if (n > 0) {
+        items.push({
+          id: "dual-pending",
+          level: "high",
+          title: "待双签例外",
+          body: `${n} 单等待 EHS/管理员批准`,
+          to: "/admin",
+        });
+      }
+    }
+
+    res.json({ items });
   });
 
   // ---- carriers / drivers / vehicles ----
@@ -357,7 +546,21 @@ export function createApiRouter({ deviceHub }) {
 
   // ---- visits state machine ----
   router.get("/visits", auth, (req, res) => {
-    const { status } = req.query;
+    const { status, passCode } = req.query;
+    if (passCode) {
+      const v = db
+        .prepare(
+          `SELECT v.*, d.name AS driver_name, d.phone AS driver_phone, vh.plate_no, c.name AS carrier_name
+           FROM visits v
+           JOIN drivers d ON d.id = v.driver_id
+           JOIN vehicles vh ON vh.id = v.vehicle_id
+           JOIN carriers c ON c.id = v.carrier_id
+           WHERE upper(v.pass_code) = upper(?)`
+        )
+        .get(String(passCode).trim());
+      if (!v) return res.status(404).json({ error: "未找到通行码对应单据" });
+      return res.json({ items: [enrichVisit(v)], visit: enrichVisit(v) });
+    }
     let items;
     if (status) {
       items = db
@@ -368,7 +571,7 @@ export function createApiRouter({ deviceHub }) {
            JOIN vehicles vh ON vh.id = v.vehicle_id
            JOIN carriers c ON c.id = v.carrier_id
            WHERE v.status = ?
-           ORDER BY v.updated_at DESC`
+           ORDER BY COALESCE(v.risk_score, 0) DESC, v.updated_at DESC`
         )
         .all(status);
     } else {
@@ -420,6 +623,8 @@ export function createApiRouter({ deviceHub }) {
       customerName,
       customerPhone,
       pickupRef,
+      slotStart,
+      slotEnd,
     } = req.body || {};
 
     const type = visitType === "self_pickup" ? "self_pickup" : "carrier";
@@ -440,30 +645,56 @@ export function createApiRouter({ deviceHub }) {
       return res.status(400).json({ error: "缺少承运商/司机/车辆" });
     }
 
+    try {
+      assertSlotAvailable(slotStart, slotEnd);
+    } catch (e) {
+      return res.status(e.status || 400).json({ error: e.message });
+    }
+
+    const preAccess = evaluateAccess({
+      siteId,
+      driverId: did,
+      vehicleId: vid,
+      carrierId: cid,
+      visitType: type,
+      selectedOptions: options,
+    });
+
     const now = new Date().toISOString();
     const id = nanoid();
     db.prepare(
       `INSERT INTO visits
        (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
-        visit_type, selected_options, customer_name, customer_phone, pickup_ref, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'appointed', NULL, ?, ?, ?, ?, ?, ?, ?)`
+        visit_type, selected_options, customer_name, customer_phone, pickup_ref,
+        slot_start, slot_end, risk_score, risk_level, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'appointed', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       siteId,
       cid,
       did,
       vid,
-      appointmentAt || now,
+      slotStart || appointmentAt || now,
       type,
       JSON.stringify(options),
       customerName || null,
       customerPhone || null,
       pickupRef || null,
+      slotStart,
+      slotEnd,
+      preAccess.riskScore ?? null,
+      preAccess.riskLevel ?? null,
       now,
       now
     );
-    audit(req.user, "visit.create", "visit", id, { visitType: type, options, pickupRef });
-    res.json({ visit: enrichVisit(getVisit(id)) });
+    audit(req.user, "visit.create", "visit", id, {
+      visitType: type,
+      options,
+      pickupRef,
+      slotStart,
+      riskScore: preAccess.riskScore,
+    });
+    res.json({ visit: enrichVisit(getVisit(id)), access: preAccess });
   });
 
   router.post("/visits/:id/checkin", auth, (req, res) => {
@@ -482,10 +713,20 @@ export function createApiRouter({ deviceHub }) {
       selectedOptions,
     });
     const now = new Date().toISOString();
+    const passCode = v.pass_code || makePassCode();
     if (!access.allowed) {
       db.prepare(
-        `UPDATE visits SET status = 'access_pending', checkin_at = ?, block_reasons = ?, updated_at = ? WHERE id = ?`
-      ).run(now, JSON.stringify(access.reasons), now, v.id);
+        `UPDATE visits SET status = 'access_pending', checkin_at = ?, block_reasons = ?,
+         pass_code = ?, risk_score = ?, risk_level = ?, updated_at = ? WHERE id = ?`
+      ).run(
+        now,
+        JSON.stringify(access.reasons),
+        passCode,
+        access.riskScore ?? null,
+        access.riskLevel ?? null,
+        now,
+        v.id
+      );
       audit(req.user, "visit.checkin_blocked", "visit", v.id, access.reasons);
       return res.json({
         ok: false,
@@ -495,9 +736,22 @@ export function createApiRouter({ deviceHub }) {
       });
     }
     db.prepare(
-      `UPDATE visits SET status = 'inspecting', checkin_at = ?, admitted_at = ?, block_reasons = NULL, updated_at = ? WHERE id = ?`
-    ).run(now, now, now, v.id);
-    audit(req.user, "visit.checkin_ok", "visit", v.id, { visitType: v.visit_type });
+      `UPDATE visits SET status = 'inspecting', checkin_at = ?, admitted_at = ?, block_reasons = NULL,
+       pass_code = ?, risk_score = ?, risk_level = ?, updated_at = ? WHERE id = ?`
+    ).run(
+      now,
+      now,
+      passCode,
+      access.riskScore ?? null,
+      access.riskLevel ?? null,
+      now,
+      v.id
+    );
+    audit(req.user, "visit.checkin_ok", "visit", v.id, {
+      visitType: v.visit_type,
+      passCode,
+      riskScore: access.riskScore,
+    });
     res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), access });
   });
 
@@ -514,17 +768,39 @@ export function createApiRouter({ deviceHub }) {
       req.body?.pass !== false &&
       requiredKeys.every((k) => checklist[k] === true);
     const now = new Date().toISOString();
+    const checkedAt = Object.fromEntries(
+      Object.keys(checklist).map((k) => [k, checklist[k] ? now : null])
+    );
+
+    let snapshot = null;
+    try {
+      snapshot = await deviceHub.snapshot("cam-gate-1", { visitId: v.id });
+    } catch {
+      snapshot = { ok: true, mock: true, url: `mock://snap/${v.id}`, at: now };
+    }
+
+    const evidence = {
+      checklist,
+      checkedAt,
+      pass,
+      at: now,
+      by: req.user.name,
+      snapshot,
+      riskScore: v.risk_score,
+      riskLevel: v.risk_level,
+    };
+
     if (!pass) {
       db.prepare(
         `UPDATE visits SET status = 'rejected', inspection_json = ?, updated_at = ? WHERE id = ?`
-      ).run(JSON.stringify({ checklist, pass: false, at: now }), now, v.id);
-      audit(req.user, "visit.inspect_fail", "visit", v.id, checklist);
+      ).run(JSON.stringify(evidence), now, v.id);
+      audit(req.user, "visit.inspect_fail", "visit", v.id, evidence);
       return res.json({ ok: false, visit: enrichVisit(getVisit(v.id)) });
     }
 
     db.prepare(
       `UPDATE visits SET status = 'onsite', inspection_json = ?, onsite_at = ?, updated_at = ? WHERE id = ?`
-    ).run(JSON.stringify({ checklist, pass: true, at: now }), now, now, v.id);
+    ).run(JSON.stringify(evidence), now, now, v.id);
 
     let deviceResult = null;
     try {
@@ -533,13 +809,12 @@ export function createApiRouter({ deviceHub }) {
         direction: "in",
         reason: "inspect_pass",
       });
-      await deviceHub.snapshot("cam-gate-1", { visitId: v.id });
     } catch (e) {
       deviceResult = { ok: false, error: String(e.message || e), note: "设备预留层失败，业务状态已入场" };
     }
 
-    audit(req.user, "visit.admit", "visit", v.id, { deviceResult, visitType: v.visit_type });
-    res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), deviceResult });
+    audit(req.user, "visit.admit", "visit", v.id, { deviceResult, visitType: v.visit_type, evidence });
+    res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), deviceResult, evidence });
   });
 
   router.post("/visits/:id/depart", auth, async (req, res) => {
@@ -600,12 +875,40 @@ export function createApiRouter({ deviceHub }) {
   router.post("/visits/:id/exception", auth, role("gate", "ehs", "admin"), async (req, res) => {
     const v = getVisit(req.params.id);
     if (!v) return res.status(404).json({ error: "不存在" });
+    if (!["access_pending", "rejected", "inspecting"].includes(v.status)) {
+      return res.status(400).json({ error: `当前状态不可申请例外: ${v.status}` });
+    }
     const { reason, approverNote } = req.body || {};
     if (!reason) return res.status(400).json({ error: "须填写例外原因" });
     const now = new Date().toISOString();
+    const note = {
+      reason,
+      approverNote: approverNote || null,
+      requestedBy: req.user.name,
+      requestedById: req.user.id,
+      requestedAt: now,
+      status: dualApproveEnabled() ? "pending" : "approved",
+    };
+
+    if (dualApproveEnabled() && req.user.role === "gate") {
+      db.prepare(
+        `UPDATE visits SET status = 'exception_requested', exception_note = ?, updated_at = ? WHERE id = ?`
+      ).run(JSON.stringify(note), now, v.id);
+      audit(req.user, "visit.exception_request", "visit", v.id, note);
+      return res.json({
+        ok: true,
+        pendingApproval: true,
+        visit: enrichVisit(getVisit(v.id)),
+        message: "已提交双签例外，等待 EHS/管理员批准",
+      });
+    }
+
+    note.approvedBy = req.user.name;
+    note.approvedAt = now;
+    note.status = "approved";
     db.prepare(
       `UPDATE visits SET status = 'onsite', exception_note = ?, onsite_at = ?, updated_at = ? WHERE id = ?`
-    ).run(JSON.stringify({ reason, approverNote, by: req.user.name, at: now }), now, now, v.id);
+    ).run(JSON.stringify(note), now, now, v.id);
     let deviceResult = null;
     try {
       deviceResult = await deviceHub.openBarrier("barrier-in-1", {
@@ -616,8 +919,65 @@ export function createApiRouter({ deviceHub }) {
     } catch (e) {
       deviceResult = { ok: false, error: String(e.message || e) };
     }
-    audit(req.user, "visit.exception", "visit", v.id, { reason, approverNote, deviceResult });
-    res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), deviceResult });
+    audit(req.user, "visit.exception", "visit", v.id, { ...note, deviceResult });
+    res.json({ ok: true, pendingApproval: false, visit: enrichVisit(getVisit(v.id)), deviceResult });
+  });
+
+  router.post(
+    "/visits/:id/exception/approve",
+    auth,
+    role("ehs", "admin"),
+    async (req, res) => {
+      const v = getVisit(req.params.id);
+      if (!v) return res.status(404).json({ error: "不存在" });
+      if (v.status !== "exception_requested") {
+        return res.status(400).json({ error: `当前状态不可批准: ${v.status}` });
+      }
+      const now = new Date().toISOString();
+      const note = {
+        ...(safeJson(v.exception_note) || {}),
+        approvedBy: req.user.name,
+        approvedAt: now,
+        status: "approved",
+        approverNote: req.body?.approverNote || null,
+      };
+      db.prepare(
+        `UPDATE visits SET status = 'onsite', exception_note = ?, onsite_at = ?, updated_at = ? WHERE id = ?`
+      ).run(JSON.stringify(note), now, now, v.id);
+      let deviceResult = null;
+      try {
+        deviceResult = await deviceHub.openBarrier("barrier-in-1", {
+          visitId: v.id,
+          direction: "in",
+          reason: `exception_approved:${note.reason || ""}`,
+        });
+      } catch (e) {
+        deviceResult = { ok: false, error: String(e.message || e) };
+      }
+      audit(req.user, "visit.exception_approve", "visit", v.id, { ...note, deviceResult });
+      res.json({ ok: true, visit: enrichVisit(getVisit(v.id)), deviceResult });
+    }
+  );
+
+  router.post("/visits/:id/exception/reject", auth, role("ehs", "admin"), (req, res) => {
+    const v = getVisit(req.params.id);
+    if (!v) return res.status(404).json({ error: "不存在" });
+    if (v.status !== "exception_requested") {
+      return res.status(400).json({ error: `当前状态不可驳回: ${v.status}` });
+    }
+    const now = new Date().toISOString();
+    const note = {
+      ...(safeJson(v.exception_note) || {}),
+      rejectedBy: req.user.name,
+      rejectedAt: now,
+      status: "rejected",
+      rejectReason: req.body?.reason || "未批准",
+    };
+    db.prepare(
+      `UPDATE visits SET status = 'access_pending', exception_note = ?, updated_at = ? WHERE id = ?`
+    ).run(JSON.stringify(note), now, v.id);
+    audit(req.user, "visit.exception_reject", "visit", v.id, note);
+    res.json({ ok: true, visit: enrichVisit(getVisit(v.id)) });
   });
 
   // ---- devices ----
@@ -640,12 +1000,28 @@ export function createApiRouter({ deviceHub }) {
     }
   });
 
-  router.post("/devices/lpr/simulate", auth, role("gate", "admin"), async (req, res) => {
+  router.post("/devices/lpr/simulate", auth, role("gate", "admin", "ehs"), async (req, res) => {
     const plateNo = req.body?.plateNo;
     await deviceHub.get("lpr-gate-1").execute("set_demo_plate", { plateNo });
     const captured = await deviceHub.capturePlate("lpr-gate-1");
     const vehicle = db.prepare(`SELECT * FROM vehicles WHERE plate_no = ?`).get(captured.plateNo);
-    res.json({ captured, vehicle: vehicle || null });
+    let matchedVisit = null;
+    if (vehicle) {
+      const row = db
+        .prepare(
+          `SELECT v.*, d.name AS driver_name, d.phone AS driver_phone, vh.plate_no, c.name AS carrier_name
+           FROM visits v
+           JOIN drivers d ON d.id = v.driver_id
+           JOIN vehicles vh ON vh.id = v.vehicle_id
+           JOIN carriers c ON c.id = v.carrier_id
+           WHERE v.vehicle_id = ?
+             AND v.status IN ('inspecting','access_pending','exception_requested','appointed')
+           ORDER BY v.updated_at DESC LIMIT 1`
+        )
+        .get(vehicle.id);
+      if (row) matchedVisit = enrichVisit(row);
+    }
+    res.json({ captured, vehicle: vehicle || null, matchedVisit });
   });
 
   // ---- audit ----
@@ -714,6 +1090,7 @@ function enrichVisit(v) {
   if (!v) return null;
   const selectedOptions = safeJson(v.selected_options) || [];
   const visitType = v.visit_type || "carrier";
+  const mins = dwellMinutes(v.onsite_at);
   return {
     ...v,
     visit_type: visitType,
@@ -724,5 +1101,9 @@ function enrichVisit(v) {
     departure: safeJson(v.departure_json),
     exception: safeJson(v.exception_note),
     depart_steps: resolveDepartSteps(visitType, selectedOptions),
+    dwell_minutes: v.status === "onsite" || v.status === "departing" ? mins : null,
+    dwell_over: (v.status === "onsite" || v.status === "departing") && isDwellOver(v.onsite_at),
+    dwell_warn_minutes: dwellWarnMinutes(),
+    fast_lane: v.risk_level === "low",
   };
 }

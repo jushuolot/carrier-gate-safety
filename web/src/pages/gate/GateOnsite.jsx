@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { RiskPill } from "../../components/PassCode";
 import { useI18n } from "../../i18n/I18nContext";
+import { formatDateTime, statusLabel, visitTypeLabel } from "../../i18n/labels";
 
 export default function GateOnsite() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [items, setItems] = useState([]);
   const [warn, setWarn] = useState(90);
   const [err, setErr] = useState("");
@@ -22,10 +23,10 @@ export default function GateOnsite() {
 
   useEffect(() => {
     load().catch((e) => setErr(e.message));
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       load().catch(() => {});
     }, 8000);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, []);
 
   async function gateSign(id) {
@@ -47,18 +48,31 @@ export default function GateOnsite() {
         method: "POST",
         body: { passCode: passCodes[id] || undefined },
       });
-      setMsg(r.message || `归档 ${r.archiveKey}`);
+      setMsg(r.message || t("archiveNo", { key: r.archiveKey }));
       await load();
     } catch (e) {
       setMsg(e.message);
     }
   }
 
+  function stayText(onsiteAt) {
+    if (!onsiteAt) return "-";
+    const mins = Math.max(0, Math.round((Date.now() - new Date(onsiteAt).getTime()) / 60000));
+    if (mins < 60) return t("stayedMins", { mins });
+    return t("stayHours", { h: Math.floor(mins / 60), m: mins % 60 });
+  }
+
+  function onsiteStatus(v) {
+    if (v.status === "departing") return statusLabel(t, "departing");
+    if (v.dwell_over) return t("dwellOverStatus");
+    return statusLabel(t, "onsite");
+  }
+
   return (
     <div className="gate-page">
       <header className="gate-head page-head">
         <h2>{t("gateOnsite")}</h2>
-        <p className="muted">{t("gateOnsiteSub").replace("{n}", String(warn))}</p>
+        <p className="muted">{t("gateOnsiteSub", { n: warn })}</p>
       </header>
 
       {err && <div className="gate-toast bad">{err}</div>}
@@ -66,7 +80,7 @@ export default function GateOnsite() {
 
       {!items.length && (
         <div className="card gate-empty">
-          <p className="muted">当前无在场 / 待签退车辆</p>
+          <p className="muted">{t("noOnsite")}</p>
         </div>
       )}
 
@@ -77,9 +91,9 @@ export default function GateOnsite() {
             className={`card gate-onsite-card ${v.dwell_over ? "dwell-over" : ""}`}
           >
             <span className="gate-item-top">
-              <span className="pill">{v.visit_type_label || v.visit_type}</span>
+              <span className="pill">{visitTypeLabel(t, v.visit_type)}</span>
               <span className={`pill ${v.status === "departing" ? "warn" : v.dwell_over ? "warn" : "ok"}`}>
-                {v.status === "departing" ? "离场中" : v.dwell_over ? "超时" : "在场"}
+                {onsiteStatus(v)}
               </span>
               <RiskPill level={v.risk_level} score={v.risk_score} />
             </span>
@@ -89,32 +103,36 @@ export default function GateOnsite() {
                 : `${v.plate_no} · ${v.driver_name}`}
             </strong>
             <p className="muted" style={{ margin: "6px 0 0" }}>
-              入场 {formatTime(v.onsite_at)} · 已停留 {v.dwell_minutes ?? stayText(v.onsite_at)}
-              {v.dwell_over ? " · 请催促离场" : ""}
-              {v.pass_code ? ` · 码 ${v.pass_code}` : ""}
+              {t("enteredAt", { time: formatDateTime(lang, v.onsite_at) })}
+              {" · "}
+              {v.dwell_minutes != null
+                ? t("stayedMins", { mins: v.dwell_minutes })
+                : stayText(v.onsite_at)}
+              {v.dwell_over ? t("urgeDepart") : ""}
+              {v.pass_code ? ` · ${t("passCodeShort", { code: v.pass_code })}` : ""}
             </p>
 
             {v.status === "departing" && v.ready_for_sign && (
               <div style={{ marginTop: 10 }}>
                 <p className="muted">
-                  双签：司机 {v.checkout_signs?.driver ? "✓" : "○"} · 门岗{" "}
+                  {t("dualSignDriver")} {v.checkout_signs?.driver ? "✓" : "○"} · {t("dualSignGate")}{" "}
                   {v.checkout_signs?.gate ? "✓" : "○"}
                 </p>
                 {!v.checkout_signs?.gate && (
                   <button className="btn primary btn-block" type="button" onClick={() => gateSign(v.id)}>
-                    门岗签退
+                    {t("gateCheckout")}
                   </button>
                 )}
                 {v.both_signed && (
                   <>
                     <div className="field" style={{ marginTop: 8 }}>
-                      <label>通行码确认（可选）</label>
+                      <label>{t("passCodeConfirmOptional")}</label>
                       <input
                         value={passCodes[v.id] || ""}
                         onChange={(e) =>
                           setPassCodes((m) => ({ ...m, [v.id]: e.target.value.toUpperCase() }))
                         }
-                        placeholder={v.pass_code || "输入通行码"}
+                        placeholder={v.pass_code || t("placeholderPassCode")}
                       />
                     </div>
                     <button
@@ -122,7 +140,7 @@ export default function GateOnsite() {
                       type="button"
                       onClick={() => confirmCheckout(v.id)}
                     >
-                      扫码确认离场开闸
+                      {t("confirmCheckout")}
                     </button>
                   </>
                 )}
@@ -133,25 +151,4 @@ export default function GateOnsite() {
       </ul>
     </div>
   );
-}
-
-function formatTime(onsiteAt) {
-  if (!onsiteAt) return "-";
-  try {
-    return new Date(onsiteAt).toLocaleString("zh-CN", {
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return onsiteAt;
-  }
-}
-
-function stayText(onsiteAt) {
-  if (!onsiteAt) return "-";
-  const mins = Math.max(0, Math.round((Date.now() - new Date(onsiteAt).getTime()) / 60000));
-  if (mins < 60) return `${mins} 分钟`;
-  return `${Math.floor(mins / 60)} 小时 ${mins % 60} 分`;
 }

@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, setSession } from "../api";
 import { isPagesDemo, reclaimDemoStorage } from "../mockApi";
+import BrandMark from "../components/BrandMark";
+import StageBands from "../components/StageBands";
 import { BrandLockup, LangSwitch, useI18n } from "../i18n/I18nContext";
 
 function isQuotaError(msg = "") {
@@ -77,9 +79,7 @@ export default function Login() {
           nav(r === "driver" ? "/driver" : r === "gate" ? "/gate" : "/admin");
           return;
         } catch {
-          setErr(
-            "本地演示缓存已满。请点下方「清除演示缓存」，或用无痕窗口打开页面后再登录。"
-          );
+          setErr(t("errQuota"));
           return;
         }
       }
@@ -91,11 +91,11 @@ export default function Login() {
 
   return (
     <div className="stage stage-login">
-      <div className="stage-photo" aria-hidden />
+      <StageBands />
 
       <header className="stage-nav">
         <Link className="stage-logo" to="/">
-          <span className="stage-logo-mark" aria-hidden />
+          <BrandMark className="stage-logo-mark" />
           <span className="stage-logo-text">{t("brandShort")}</span>
         </Link>
         <div className="stage-nav-right">

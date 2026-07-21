@@ -1,22 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-
-function formatAt(iso) {
-  if (!iso) return "-";
-  try {
-    return new Date(iso).toLocaleString("zh-CN", {
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return String(iso).slice(0, 19);
-  }
-}
+import { useI18n } from "../../i18n/I18nContext";
+import { formatDateTime } from "../../i18n/labels";
 
 export default function DevicesPage() {
+  const { t, lang } = useI18n();
   const [items, setItems] = useState([]);
   const [events, setEvents] = useState([]);
   const [msg, setMsg] = useState("");
@@ -55,10 +43,10 @@ export default function DevicesPage() {
       return (
         <>
           <button className="btn" type="button" onClick={() => exec(d.id, "open")}>
-            开闸
+            {t("openGate")}
           </button>
           <button className="btn" type="button" onClick={() => exec(d.id, "close")}>
-            关闸
+            {t("closeGate")}
           </button>
         </>
       );
@@ -66,21 +54,21 @@ export default function DevicesPage() {
     if (d.type === "lpr") {
       return (
         <button className="btn" type="button" onClick={() => exec(d.id, "capture")}>
-          抓拍车牌
+          {t("capturePlate")}
         </button>
       );
     }
     if (d.type === "weighbridge") {
       return (
         <button className="btn" type="button" onClick={() => exec(d.id, "read")}>
-          读磅
+          {t("readScale")}
         </button>
       );
     }
     if (d.type === "camera") {
       return (
         <button className="btn" type="button" onClick={() => exec(d.id, "snapshot")}>
-          抓拍
+          {t("snapshot")}
         </button>
       );
     }
@@ -90,8 +78,8 @@ export default function DevicesPage() {
   return (
     <div className="page-block">
       <header className="page-head">
-        <h2>设备与对接</h2>
-        <p className="muted">适配器状态与事件流；日常开闸由门岗放行时触发。厂商 stub 离线表示待对接。</p>
+        <h2>{t("pageDevices")}</h2>
+        <p className="muted">{t("devicesSubtitle")}</p>
       </header>
 
       <ul className="record-list mobile-only">
@@ -100,7 +88,7 @@ export default function DevicesPage() {
             <div className="record-card-top">
               <strong>{d.name}</strong>
               <span className={`pill ${d.online ? "ok" : "bad"}`}>
-                {d.online ? "在线" : "离线/未对接"}
+                {d.online ? t("online") : t("offlinePending")}
               </span>
             </div>
             <p className="record-sub muted">
@@ -118,10 +106,10 @@ export default function DevicesPage() {
           <table className="table table-comfortable">
             <thead>
               <tr>
-                <th>设备</th>
-                <th>类型</th>
-                <th>状态</th>
-                <th>操作</th>
+                <th>{t("colDevice")}</th>
+                <th>{t("colDevType")}</th>
+                <th>{t("colDevStatus")}</th>
+                <th>{t("colAction")}</th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +124,7 @@ export default function DevicesPage() {
                   <td>{d.type}</td>
                   <td>
                     <span className={`pill ${d.online ? "ok" : "bad"}`}>
-                      {d.online ? "在线" : "离线/未对接"}
+                      {d.online ? t("online") : t("offlinePending")}
                     </span>
                   </td>
                   <td>
@@ -156,18 +144,18 @@ export default function DevicesPage() {
 
       <section className="card panel-card" style={{ marginTop: 12 }}>
         <div className="panel-card-head">
-          <strong>设备事件流</strong>
-          <span className="muted">{events.length} 条</span>
+          <strong>{t("eventStream")}</strong>
+          <span className="muted">{t("countItems", { n: events.length })}</span>
         </div>
 
         <ul className="entity-list mobile-only">
-          {!events.length && <li className="muted">暂无事件</li>}
+          {!events.length && <li className="muted">{t("noEvents")}</li>}
           {events.map((e) => (
             <li key={e.id} className="entity-row entity-row-stack">
               <div className="entity-main">
                 <div className="entity-primary">{e.event_type}</div>
                 <div className="entity-secondary">
-                  {e.device_type}/{e.device_id} · {formatAt(e.created_at)}
+                  {e.device_type}/{e.device_id} · {formatDateTime(lang, e.created_at, { second: "2-digit" })}
                 </div>
                 <div className="mono-soft muted" style={{ marginTop: 4, fontSize: 12 }}>
                   {JSON.stringify(e.payload)}
@@ -181,16 +169,16 @@ export default function DevicesPage() {
           <table className="table table-comfortable">
             <thead>
               <tr>
-                <th>时间</th>
-                <th>设备</th>
-                <th>事件</th>
-                <th>载荷</th>
+                <th>{t("colTime")}</th>
+                <th>{t("colDevice")}</th>
+                <th>{t("colEvent")}</th>
+                <th>{t("colPayload")}</th>
               </tr>
             </thead>
             <tbody>
               {events.map((e) => (
                 <tr key={e.id}>
-                  <td className="nowrap">{formatAt(e.created_at)}</td>
+                  <td className="nowrap">{formatDateTime(lang, e.created_at, { second: "2-digit" })}</td>
                   <td className="cell-wrap">
                     {e.device_type}/{e.device_id}
                   </td>
@@ -201,7 +189,7 @@ export default function DevicesPage() {
               {!events.length && (
                 <tr>
                   <td colSpan={4} className="muted">
-                    暂无事件
+                    {t("noEvents")}
                   </td>
                 </tr>
               )}

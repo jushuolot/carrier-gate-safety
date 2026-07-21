@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { getUser } from "../api";
 import { isPagesDemo } from "../mockApi";
+import BrandMark from "../components/BrandMark";
+import StageBands from "../components/StageBands";
 import { BrandLockup, LangSwitch, useI18n } from "../i18n/I18nContext";
 
 function homeFor(user) {
@@ -23,11 +25,11 @@ export default function Portal() {
 
   return (
     <div className="stage">
-      <div className="stage-photo" aria-hidden />
+      <StageBands />
 
       <header className="stage-nav">
         <div className="stage-logo">
-          <span className="stage-logo-mark" aria-hidden />
+          <BrandMark className="stage-logo-mark" />
           <span className="stage-logo-text">{t("brandShort")}</span>
         </div>
         <div className="stage-nav-right">

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
 import { RiskPill } from "../../components/PassCode";
 import { useI18n } from "../../i18n/I18nContext";
+import { docTypeLabel } from "../../i18n/labels";
 
 export default function Dashboard() {
   const user = getUser();
@@ -33,9 +34,9 @@ export default function Dashboard() {
     try {
       await api(`/visits/${id}/exception/approve`, {
         method: "POST",
-        body: { approverNote: "EHS 批准" },
+        body: { approverNote: "EHS" },
       });
-      setMsg("已批准例外并开闸");
+      setMsg(t("toastApproved"));
       await load();
     } catch (e) {
       setMsg(e.message);
@@ -50,9 +51,9 @@ export default function Dashboard() {
     try {
       await api(`/visits/${id}/exception/reject`, {
         method: "POST",
-        body: { reason: "证据不足" },
+        body: { reason: "rejected" },
       });
-      setMsg("已驳回，单据回待准入");
+      setMsg(t("toastRejected"));
       await load();
     } catch (e) {
       setMsg(e.message);
@@ -61,7 +62,7 @@ export default function Dashboard() {
     }
   }
 
-  if (!dash) return <p className="muted">加载中…</p>;
+  if (!dash) return <p className="muted">{t("loading")}</p>;
 
   return (
     <div className="page-block">
@@ -81,36 +82,36 @@ export default function Dashboard() {
 
       <div className="grid stats">
         <div className="card stat">
-          <div className="l">当前在场</div>
+          <div className="l">{t("statOnsite")}</div>
           <div className="v">{dash.onsite}</div>
         </div>
         <div className="card stat">
-          <div className="l">今日到访</div>
+          <div className="l">{t("statTodayVisits")}</div>
           <div className="v">{dash.todayAppointed}</div>
         </div>
         <div className="card stat">
-          <div className="l">待安检</div>
+          <div className="l">{t("statInspecting")}</div>
           <div className="v">{dash.inspecting ?? 0}</div>
         </div>
         <div className="card stat">
-          <div className="l">待双签</div>
+          <div className="l">{t("statDualSign")}</div>
           <div className="v">{dash.exceptionRequested ?? 0}</div>
         </div>
         <div className="card stat">
-          <div className="l">超时在场</div>
+          <div className="l">{t("statDwellOver")}</div>
           <div className="v">{dash.dwellOver ?? 0}</div>
         </div>
         <div className="card stat">
-          <div className="l">30 天内到期</div>
+          <div className="l">{t("statExpiring30d")}</div>
           <div className="v">{dash.expiring30d}</div>
         </div>
       </div>
 
       {(user?.role === "admin" || user?.role === "ehs") && (
         <div className="card" style={{ marginTop: 16 }}>
-          <strong>待双签例外</strong>
-          <p className="muted">门岗申请后须 EHS/管理员批准方可开闸</p>
-          {!exceptions.length && <p className="muted">暂无待批</p>}
+          <strong>{t("pendingExceptions")}</strong>
+          <p className="muted">{t("pendingExceptionsDesc")}</p>
+          {!exceptions.length && <p className="muted">{t("noPendingApproval")}</p>}
           <ul className="gate-list" style={{ marginTop: 10 }}>
             {exceptions.map((v) => (
               <li key={v.id} className="card" style={{ padding: 14 }}>
@@ -121,8 +122,8 @@ export default function Dashboard() {
                   <RiskPill level={v.risk_level} score={v.risk_score} />
                 </div>
                 <p className="muted" style={{ margin: "6px 0 10px" }}>
-                  {v.exception?.reason || "例外申请"}
-                  {v.pass_code ? ` · 码 ${v.pass_code}` : ""}
+                  {v.exception?.reason || t("exceptionRequest")}
+                  {v.pass_code ? ` · ${t("passCodeShort", { code: v.pass_code })}` : ""}
                 </p>
                 <div className="row">
                   <button
@@ -131,10 +132,10 @@ export default function Dashboard() {
                     disabled={busy}
                     onClick={() => approve(v.id)}
                   >
-                    批准开闸
+                    {t("approveGate")}
                   </button>
                   <button className="btn danger" type="button" disabled={busy} onClick={() => reject(v.id)}>
-                    驳回
+                    {t("reject")}
                   </button>
                 </div>
               </li>
@@ -145,13 +146,13 @@ export default function Dashboard() {
 
       <div className="grid grid-2" style={{ marginTop: 16 }}>
         <div className="card">
-          <strong>近期证件风险</strong>
-          <p className="muted">后台催办承运商补证；门岗只在放行时看拦截结果。</p>
+          <strong>{t("recentDocRisk")}</strong>
+          <p className="muted">{t("recentDocRiskDesc")}</p>
           <ul className="entity-list">
             {expiring.map((d) => (
               <li key={d.id} className="entity-row">
                 <div className="entity-main">
-                  <div className="entity-primary">{d.label}</div>
+                  <div className="entity-primary">{docTypeLabel(t, d.doc_type)}</div>
                   <div className="entity-secondary">
                     {d.subject_type}/{d.subject_id}
                   </div>
@@ -159,26 +160,26 @@ export default function Dashboard() {
                 <span className={`pill ${d.expired ? "bad" : "warn"}`}>{d.expire_at}</span>
               </li>
             ))}
-            {!expiring.length && <li className="muted">近 14 天无到期预警</li>}
+            {!expiring.length && <li className="muted">{t("noExpiring14d")}</li>}
           </ul>
-          <Link to="/admin/documents">查看全部到期 →</Link>
+          <Link to="/admin/documents">{t("viewAllExpiring")}</Link>
         </div>
 
         <div className="card">
-          <strong>智能编排能力</strong>
+          <strong>{t("smartOrchestration")}</strong>
           <ul style={{ marginTop: 10, paddingLeft: 18, lineHeight: 1.7 }}>
-            <li>预约时段容量控制</li>
-            <li>动态风险评分与快速通道提示</li>
-            <li>通行码 + LPR 自动匹配</li>
-            <li>双签例外与在场 SLA 催离</li>
+            <li>{t("orchSlotCapacity")}</li>
+            <li>{t("orchRiskScore")}</li>
+            <li>{t("orchPassLpr")}</li>
+            <li>{t("orchDualSign")}</li>
           </ul>
           <div className="row" style={{ marginTop: 12 }}>
             <Link className="btn" to="/admin/visits">
-              打开台账
+              {t("openLedger")}
             </Link>
             {(user?.role === "admin" || user?.role === "ehs") && (
               <Link className="btn" to="/gate">
-                门岗指挥台
+                {t("gateCommandLink")}
               </Link>
             )}
           </div>

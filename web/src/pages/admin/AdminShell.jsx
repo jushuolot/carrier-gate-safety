@@ -1,11 +1,13 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { getUser } from "../../api";
 import { LogoutButton, NavLink } from "../../components";
+import BrandMark from "../../components/BrandMark";
+import { demoName } from "../../i18n/content";
 import { LangSwitch, useI18n } from "../../i18n/I18nContext";
 
 export default function AdminShell() {
   const user = getUser();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   if (!user) return <Navigate to="/login?role=admin" replace />;
   if (user.role === "gate") return <Navigate to="/gate" replace />;
 
@@ -16,10 +18,10 @@ export default function AdminShell() {
     <div className="layout">
       <aside className="side">
         <div className="brand">
-          <div className="brand-mark" aria-hidden />
+          <BrandMark className="brand-mark" />
           <div className="brand-text">
             <strong>{t("brand")}</strong>
-            <span>{t("brandEn")}</span>
+            <span>{t("brandAlt")}</span>
           </div>
         </div>
         <p className="side-caption">{t("nav")}</p>
@@ -41,7 +43,7 @@ export default function AdminShell() {
           <LangSwitch className="lang-switch-side" />
         </div>
         <div className="side-meta">
-          {user.name}
+          {demoName(lang, user.id, user.name)}
           <br />
           {roleLabel(user.role, t)}
         </div>

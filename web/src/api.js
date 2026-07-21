@@ -1,7 +1,23 @@
 import { isPagesDemo, mockApi, reclaimDemoStorage } from "./mockApi";
+import { translateApiError } from "./i18n/content";
 
 const TOKEN_KEY = "cgs_token";
 const USER_KEY = "cgs_user";
+const LANG_KEY = "cgs_lang";
+
+function currentLang() {
+  try {
+    const v = localStorage.getItem(LANG_KEY);
+    if (v === "en" || v === "de" || v === "zh") return v;
+  } catch {
+    /* ignore */
+  }
+  return "zh";
+}
+
+function localizedError(message) {
+  return translateApiError(currentLang(), message);
+}
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -32,9 +48,11 @@ export function setSession(token, user) {
       }
     }
     throw new Error(
-      e?.message?.includes("quota") || e?.name === "QuotaExceededError"
-        ? "浏览器本地存储已满，请清除本站数据后重试"
-        : e.message || "无法保存登录状态"
+      localizedError(
+        e?.message?.includes("quota") || e?.name === "QuotaExceededError"
+          ? "浏览器本地存储已满，请清除本站数据后重试"
+          : e.message || "无法保存登录状态"
+      )
     );
   }
 }
@@ -45,29 +63,33 @@ export function clearSession() {
 }
 
 export async function api(path, options = {}) {
-  if (isPagesDemo()) {
-    return mockApi(path, {
-      method: options.method || "GET",
-      body: options.body,
-      headers: {
-        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-      },
+  try {
+    if (isPagesDemo()) {
+      return await mockApi(path, {
+        method: options.method || "GET",
+        body: options.body,
+        headers: {
+          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        },
+      });
+    }
+
+    const headers = {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    };
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`/api${path}`, {
+      ...options,
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText || "请求失败");
+    return data;
+  } catch (e) {
+    throw new Error(localizedError(e.message || "请求失败"));
   }
-
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(`/api${path}`, {
-    ...options,
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText || "请求失败");
-  return data;
 }

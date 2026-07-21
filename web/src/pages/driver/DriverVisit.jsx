@@ -2,9 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
 import { PassCodeCard, RiskPill } from "../../components/PassCode";
+import { useI18n } from "../../i18n/I18nContext";
+import {
+  checkLabel,
+  reasonLabel,
+  riskFactorLabel,
+  statusLabel,
+  visitTypeLabel,
+} from "../../i18n/labels";
 
 export default function DriverVisit() {
   const user = getUser();
+  const { t } = useI18n();
   const [types, setTypes] = useState([]);
   const [visitType, setVisitType] = useState("carrier_inbound");
   const [selectedOptions, setSelectedOptions] = useState([]);
@@ -22,7 +31,7 @@ export default function DriverVisit() {
   const [msg, setMsg] = useState("");
 
   const typeMeta = useMemo(
-    () => types.find((t) => t.id === visitType) || null,
+    () => types.find((x) => x.id === visitType) || null,
     [types, visitType]
   );
   const needsVehicle = visitType !== "self_pickup";
@@ -96,7 +105,12 @@ export default function DriverVisit() {
       const r = await api("/visits", { method: "POST", body });
       setVisit(r.visit);
       setAccess(r.access || null);
-      setMsg(`预约已创建 · ${r.visit.visit_type_label} · 时段 ${selectedSlot?.label || ""}`);
+      setMsg(
+        t("appointmentCreated", {
+          type: visitTypeLabel(t, r.visit.visit_type),
+          slot: selectedSlot?.label || "",
+        })
+      );
     } catch (e) {
       setMsg(e.message);
     }
@@ -108,8 +122,9 @@ export default function DriverVisit() {
       setVisit(r.visit);
       setAccess(r.access);
       setMsg(
-        r.message ||
-          (r.ok ? `报到成功 · 通行码 ${r.visit.pass_code}` : "准入未通过，请按提示补齐培训/证件")
+        r.ok
+          ? t("checkinSuccess", { code: r.visit.pass_code })
+          : t("checkinBlocked")
       );
     } catch (e) {
       setMsg(e.message);
@@ -124,7 +139,7 @@ export default function DriverVisit() {
       });
       setVisit(r.visit);
       if (r.required) setDepartSteps(r.required);
-      setMsg(r.message || (r.ok ? "请完成司机签退" : "请完成全部作业/离场检查"));
+      setMsg(r.ok ? t("departSubmitOk") : t("departSubmitIncomplete"));
     } catch (e) {
       setMsg(e.message);
     }
@@ -143,44 +158,49 @@ export default function DriverVisit() {
     }
   }
 
-  const canCreate =
-    !!slotStart &&
-    (isPickup ? !!(customerName && pickupRef) : !!vehicleId);
+  const canCreate = !!slotStart && (isPickup ? !!(customerName && pickupRef) : !!vehicleId);
+  const riskText = (access?.riskFactors || []).map((f) => riskFactorLabel(t, f)).join("、");
+
+  const typeOptions =
+    types.length > 0
+      ? types
+      : [
+          { id: "carrier_inbound" },
+          { id: "carrier_outbound" },
+          { id: "self_pickup" },
+          { id: "temporary" },
+        ];
 
   return (
     <div className="h5">
       <Link to="/driver" className="h5-back">
-        ← 返回
+        ← {t("back")}
       </Link>
-      <h1 className="h5-title">到离场报到</h1>
-      <p className="h5-sub">①预约 → ②培训/登记 → ③报到通行码 → ⑥作业检查 → ⑦双签离场</p>
+      <h1 className="h5-title">{t("visitTitle")}</h1>
+      <p className="h5-sub">{t("visitFlow")}</p>
 
       <div className="card">
         <div className="field">
-          <label>业务类型</label>
+          <label>{t("businessType")}</label>
           <select value={visitType} onChange={(e) => setVisitType(e.target.value)}>
-            {(types.length
-              ? types
-              : [
-                  { id: "carrier_inbound", label: "运输入场（送货）" },
-                  { id: "carrier_outbound", label: "运输出场（提货）" },
-                  { id: "self_pickup", label: "客户自提" },
-                  { id: "temporary", label: "其他临时车辆" },
-                ]
-            ).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
+            {typeOptions.map((x) => (
+              <option key={x.id} value={x.id}>
+                {visitTypeLabel(t, x.id)}
               </option>
             ))}
           </select>
         </div>
 
         <div className="field">
-          <label>到场时段</label>
+          <label>{t("arrivalSlot")}</label>
           <select value={slotStart} onChange={(e) => setSlotStart(e.target.value)}>
             {slots.map((s) => (
               <option key={s.slotStart} value={s.slotStart} disabled={!s.available}>
-                {s.label} · 余 {s.remaining}/{s.capacity}
+                {t("slotRemaining", {
+                  label: s.label,
+                  remaining: s.remaining,
+                  capacity: s.capacity,
+                })}
               </option>
             ))}
           </select>
@@ -188,7 +208,7 @@ export default function DriverVisit() {
 
         {needsVehicle && (
           <div className="field">
-            <label>车辆</label>
+            <label>{t("vehicle")}</label>
             <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
               {vehicles.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -202,19 +222,19 @@ export default function DriverVisit() {
         {isPickup && (
           <>
             <div className="field">
-              <label>提货人姓名</label>
+              <label>{t("pickupName")}</label>
               <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
             </div>
             <div className="field">
-              <label>联系电话</label>
+              <label>{t("contactPhone")}</label>
               <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
             </div>
             <div className="field">
-              <label>提货单号 / DN</label>
+              <label>{t("pickupDn")}</label>
               <input
                 value={pickupRef}
                 onChange={(e) => setPickupRef(e.target.value)}
-                placeholder="例如 DN-2026-001"
+                placeholder="DN-2026-001"
               />
             </div>
           </>
@@ -223,7 +243,7 @@ export default function DriverVisit() {
         {typeMeta?.departOptional?.length > 0 && (
           <div style={{ marginTop: 8 }}>
             <div className="muted" style={{ marginBottom: 6 }}>
-              可选步骤（勾选后本单强制执行）
+              {t("optionalSteps")}
             </div>
             {typeMeta.departOptional.map((s) => (
               <label key={s.key} className="gate-check" style={{ marginBottom: 8 }}>
@@ -232,7 +252,7 @@ export default function DriverVisit() {
                   checked={selectedOptions.includes(s.key)}
                   onChange={() => toggleOption(s.key)}
                 />
-                <span>{s.label}</span>
+                <span>{checkLabel(t, s.key)}</span>
               </label>
             ))}
           </div>
@@ -245,50 +265,48 @@ export default function DriverVisit() {
           onClick={createVisit}
           disabled={!canCreate}
         >
-          创建预约
+          {t("createAppointment")}
         </button>
       </div>
 
       {visit && (
         <div className="card" style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <strong>{visit.visit_type_label || "到访单"}</strong>
+            <strong>{visitTypeLabel(t, visit.visit_type) || t("visitOrder")}</strong>
             <RiskPill level={visit.risk_level} score={visit.risk_score} />
           </div>
           <p className="muted">
-            状态 {visit.status}
-            {visit.slot_start ? ` · 时段 ${String(visit.slot_start).slice(11, 16)}` : ""}
+            {t("visitStatusLine", { status: statusLabel(t, visit.status) })}
+            {visit.slot_start ? ` · ${String(visit.slot_start).slice(11, 16)}` : ""}
             {visit.plate_no ? ` · ${visit.plate_no}` : ""}
             {visit.pickup_ref ? ` · DN ${visit.pickup_ref}` : ""}
           </p>
           {access?.riskFactors?.length > 0 && (
-            <p className="muted">风险因子：{access.riskFactors.join("、")}</p>
+            <p className="muted">{t("riskFactorsLabel", { factors: riskText })}</p>
           )}
-          {visit.pass_code && (
-            <PassCodeCard code={visit.pass_code} hint="门岗扫码/输码即可打开本单（Check In）" />
-          )}
+          {visit.pass_code && <PassCodeCard code={visit.pass_code} hint={t("passCodeHint")} />}
           {["appointed", "access_pending"].includes(visit.status) && (
             <button className="btn primary btn-block" type="button" onClick={checkin}>
-              报到入场
+              {t("checkin")}
             </button>
           )}
           {access && !access.allowed && (
             <ul className="gate-reasons">
               {access.reasons.map((r, i) => (
-                <li key={i}>{r.message}</li>
+                <li key={i}>{reasonLabel(t, r)}</li>
               ))}
             </ul>
           )}
           {access?.fastLane && visit.status === "inspecting" && (
-            <p className="muted">快速通道提示：低风险，门岗可加速核验（仍须确认开闸）</p>
+            <p className="muted">{t("fastLaneHint")}</p>
           )}
         </div>
       )}
 
       {visit && ["onsite", "departing"].includes(visit.status) && !visit.ready_for_sign && (
         <div className="card" style={{ marginTop: 12 }}>
-          <strong>⑥ 作业完成与离场检查</strong>
-          <p className="muted">仓管核对 DN / EHS 检查完成后提交，再进入双签 Check Out</p>
+          <strong>{t("departCheckTitle")}</strong>
+          <p className="muted">{t("departCheckSub")}</p>
           {(departSteps.length ? departSteps : visit.depart_steps || []).map((s) => (
             <label key={s.key} className="gate-check" style={{ marginTop: 8 }}>
               <input
@@ -297,40 +315,40 @@ export default function DriverVisit() {
                 onChange={(e) => setDepart((d) => ({ ...d, [s.key]: e.target.checked }))}
               />
               <span>
-                {s.label}
-                {s.source === "optional" ? "（可选·已启用）" : ""}
+                {checkLabel(t, s.key)}
+                {s.source === "optional" ? t("optionalEnabled") : ""}
               </span>
             </label>
           ))}
           <button className="btn primary btn-block" type="button" style={{ marginTop: 12 }} onClick={doDepart}>
-            提交离场检查
+            {t("submitDepartCheck")}
           </button>
         </div>
       )}
 
       {visit && visit.status === "departing" && visit.ready_for_sign && (
         <div className="card" style={{ marginTop: 12 }}>
-          <strong>⑦ 签退 Check Out</strong>
+          <strong>{t("checkoutTitle")}</strong>
           <p className="muted">
-            司机签退 {visit.checkout_signs?.driver ? "✓" : "○"} · 门岗签退{" "}
+            {t("dualSignDriver")} {visit.checkout_signs?.driver ? "✓" : "○"} · {t("dualSignGate")}{" "}
             {visit.checkout_signs?.gate ? "✓" : "○"}
           </p>
           {!visit.checkout_signs?.driver && (
             <button className="btn primary btn-block" type="button" onClick={driverSign}>
-              司机手机签退
+              {t("driverSign")}
             </button>
           )}
           {visit.checkout_signs?.driver && !visit.both_signed && (
-            <p className="muted">已签退，等待门岗双签并扫码确认离场</p>
+            <p className="muted">{t("waitingGateSign")}</p>
           )}
-          {visit.both_signed && <p className="muted">双签完成，门岗确认后即可离场</p>}
+          {visit.both_signed && <p className="muted">{t("dualSignDone")}</p>}
         </div>
       )}
 
       {visit?.status === "completed" && (
         <div className="card" style={{ marginTop: 12 }}>
-          <strong>离场闭环完成</strong>
-          <p className="muted">归档号 {visit.archive_key || "-"}</p>
+          <strong>{t("completedTitle")}</strong>
+          <p className="muted">{t("archiveNo", { key: visit.archive_key || "-" })}</p>
         </div>
       )}
 

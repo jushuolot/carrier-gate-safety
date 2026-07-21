@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { demoName, demoVehicleType } from "../../i18n/content";
 import { useI18n } from "../../i18n/I18nContext";
 
-function EntityList({ title, items, empty = "暂无数据" }) {
+function EntityList({ title, items, empty }) {
+  const { t } = useI18n();
   return (
     <section className="card panel-card">
       <div className="panel-card-head">
         <strong>{title}</strong>
-        <span className="muted">{items.length} 条</span>
+        <span className="muted">{t("countItems", { n: items.length })}</span>
       </div>
       {!items.length ? (
         <p className="muted" style={{ margin: "12px 0 0" }}>
-          {empty}
+          {empty || t("noData")}
         </p>
       ) : (
         <ul className="entity-list">
@@ -33,7 +35,7 @@ function EntityList({ title, items, empty = "暂无数据" }) {
 }
 
 export default function MastersPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [carriers, setCarriers] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -50,37 +52,37 @@ export default function MastersPage() {
     <div className="page-block">
       <header className="page-head">
         <h2>{t("pageMasters")}</h2>
-        <p className="muted">Org / driver / vehicle</p>
+        <p className="muted">{t("mastersSubtitle")}</p>
       </header>
 
       <div className="masters-grid">
         <EntityList
-          title="承运商"
+          title={t("carrierTitle")}
           items={carriers.map((c) => ({
             id: c.id,
-            primary: c.name,
+            primary: demoName(lang, c.id, c.name),
             secondary: c.credit_code || c.id,
-            badge: c.status === "active" ? "正常" : c.status,
+            badge: c.status === "active" ? t("badgeActive") : c.status,
             badgeTone: c.status === "active" ? "ok" : "warn",
           }))}
         />
         <EntityList
-          title="司机"
+          title={t("driverTitle")}
           items={drivers.map((d) => ({
             id: d.id,
-            primary: d.name,
+            primary: demoName(lang, d.id, d.name),
             secondary: d.phone,
-            badge: d.status === "active" ? "在册" : d.status,
+            badge: d.status === "active" ? t("badgeRegistered") : d.status,
             badgeTone: d.status === "active" ? "ok" : "warn",
           }))}
         />
         <EntityList
-          title="车辆"
+          title={t("vehicleTitle")}
           items={vehicles.map((v) => ({
             id: v.id,
             primary: v.plate_no,
-            secondary: v.vehicle_type || "-",
-            badge: v.status === "active" ? "可用" : v.status,
+            secondary: demoVehicleType(lang, v.vehicle_type) || "-",
+            badge: v.status === "active" ? t("badgeAvailable") : v.status,
             badgeTone: v.status === "active" ? "ok" : "warn",
           }))}
         />

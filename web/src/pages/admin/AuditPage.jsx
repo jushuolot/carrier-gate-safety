@@ -1,22 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-
-function formatAt(iso) {
-  if (!iso) return "-";
-  try {
-    return new Date(iso).toLocaleString("zh-CN", {
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return String(iso).slice(0, 19);
-  }
-}
+import { useI18n } from "../../i18n/I18nContext";
+import { formatDateTime } from "../../i18n/labels";
 
 export default function AuditPage() {
+  const { t, lang } = useI18n();
   const [items, setItems] = useState([]);
   const [err, setErr] = useState("");
 
@@ -29,32 +17,32 @@ export default function AuditPage() {
   return (
     <div className="page-block">
       <header className="page-head">
-        <h2>审计日志</h2>
-        <p className="muted">关键操作留痕，可按时间追溯。</p>
+        <h2>{t("pageAudit")}</h2>
+        <p className="muted">{t("auditSubtitle")}</p>
       </header>
       {err && <p style={{ color: "var(--danger)" }}>{err}</p>}
 
       <ul className="record-list mobile-only">
-        {!items.length && !err && <li className="card muted">暂无日志</li>}
+        {!items.length && !err && <li className="card muted">{t("noLogs")}</li>}
         {items.map((a) => (
           <li key={a.id} className="card record-card">
             <div className="record-card-top">
               <strong>{a.action}</strong>
-              <span className="muted">{formatAt(a.created_at)}</span>
+              <span className="muted">{formatDateTime(lang, a.created_at, { second: "2-digit" })}</span>
             </div>
             <dl className="record-meta">
               <div>
-                <dt>操作者</dt>
+                <dt>{t("actorLabel")}</dt>
                 <dd>{a.actor_name || "-"}</dd>
               </div>
               <div>
-                <dt>对象</dt>
+                <dt>{t("entityLabel")}</dt>
                 <dd className="cell-wrap">
                   {a.entity_type}/{a.entity_id}
                 </dd>
               </div>
               <div className="record-meta-full">
-                <dt>详情</dt>
+                <dt>{t("detailLabel")}</dt>
                 <dd className="mono-soft">{JSON.stringify(a.detail)}</dd>
               </div>
             </dl>
@@ -67,17 +55,17 @@ export default function AuditPage() {
           <table className="table table-comfortable">
             <thead>
               <tr>
-                <th>时间</th>
-                <th>操作者</th>
-                <th>动作</th>
-                <th>对象</th>
-                <th>详情</th>
+                <th>{t("colTime")}</th>
+                <th>{t("colActor")}</th>
+                <th>{t("colAuditAction")}</th>
+                <th>{t("colEntity")}</th>
+                <th>{t("colDetail")}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((a) => (
                 <tr key={a.id}>
-                  <td className="nowrap">{formatAt(a.created_at)}</td>
+                  <td className="nowrap">{formatDateTime(lang, a.created_at, { second: "2-digit" })}</td>
                   <td>{a.actor_name}</td>
                   <td>{a.action}</td>
                   <td className="cell-wrap">
@@ -89,7 +77,7 @@ export default function AuditPage() {
               {!items.length && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    暂无日志
+                    {t("noLogs")}
                   </td>
                 </tr>
               )}

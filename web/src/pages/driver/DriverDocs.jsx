@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getUser } from "../../api";
+import { useI18n } from "../../i18n/I18nContext";
+import { docTypeLabel, statusLabel } from "../../i18n/labels";
 
-const DRIVER_DOCS = [
-  { type: "driver_license", label: "驾驶证" },
-  { type: "qualification", label: "从业资格证" },
-  { type: "id_card", label: "身份证" },
-  { type: "hazmat_permit", label: "危化许可" },
-  { type: "auth_letter", label: "授权委托书" },
-  { type: "delivery_note", label: "提货单/DN" },
+const DRIVER_DOC_TYPES = [
+  "driver_license",
+  "qualification",
+  "id_card",
+  "hazmat_permit",
+  "auth_letter",
+  "delivery_note",
 ];
 
 export default function DriverDocs() {
   const user = getUser();
+  const { t } = useI18n();
   const [docs, setDocs] = useState([]);
   const [expireDays, setExpireDays] = useState(200);
   const [msg, setMsg] = useState("");
@@ -29,7 +32,7 @@ export default function DriverDocs() {
   }, [user?.driver_id]);
 
   async function runOcr(docType) {
-    setMsg("OCR 识别中…");
+    setMsg(t("ocrProcessing"));
     try {
       const r = await api("/documents/ocr", {
         method: "POST",
@@ -43,7 +46,13 @@ export default function DriverDocs() {
         },
       });
       setLastOcr(r);
-      setMsg(`${r.label} 已归档 · 到期 ${r.ocr.expireAt} · 置信度 ${r.ocr.confidence}`);
+      setMsg(
+        t("ocrArchived", {
+          label: docTypeLabel(t, docType),
+          expire: r.ocr.expireAt,
+          confidence: r.ocr.confidence,
+        })
+      );
       await reload();
     } catch (e) {
       setMsg(e.message);
@@ -53,14 +62,14 @@ export default function DriverDocs() {
   return (
     <div className="h5">
       <Link to="/driver" className="h5-back">
-        ← 返回
+        ← {t("back")}
       </Link>
-      <h1 className="h5-title">资质上传</h1>
-      <p className="h5-sub">③登记证件 · OCR 自动校验到期日（模拟）</p>
+      <h1 className="h5-title">{t("docsUploadTitle")}</h1>
+      <p className="h5-sub">{t("docsUploadSub")}</p>
 
       <div className="card">
         <div className="field">
-          <label>模拟证件剩余有效天数</label>
+          <label>{t("simExpireDays")}</label>
           <input
             type="number"
             value={expireDays}
@@ -68,9 +77,9 @@ export default function DriverDocs() {
           />
         </div>
         <div className="doc-actions">
-          {DRIVER_DOCS.map((d) => (
-            <button key={d.type} className="btn primary" type="button" onClick={() => runOcr(d.type)}>
-              上传并识别{d.label}
+          {DRIVER_DOC_TYPES.map((type) => (
+            <button key={type} className="btn primary" type="button" onClick={() => runOcr(type)}>
+              {t("uploadAndOcr", { label: docTypeLabel(t, type) })}
             </button>
           ))}
         </div>
@@ -78,7 +87,7 @@ export default function DriverDocs() {
 
       {lastOcr && (
         <div className="card" style={{ marginTop: 12 }}>
-          <strong>OCR 结果</strong>
+          <strong>{t("ocrResult")}</strong>
           <pre className="result-pre" style={{ marginTop: 8 }}>
             {JSON.stringify(lastOcr.ocr.fields, null, 2)}
           </pre>
@@ -87,22 +96,24 @@ export default function DriverDocs() {
 
       <div className="card panel-card" style={{ marginTop: 12 }}>
         <div className="panel-card-head">
-          <strong>我的证件</strong>
-          <span className="muted">{docs.length} 份</span>
+          <strong>{t("myDocs")}</strong>
+          <span className="muted">{t("docCount", { n: docs.length })}</span>
         </div>
         {!docs.length ? (
           <p className="muted" style={{ margin: "12px 0 0" }}>
-            尚未上传证件
+            {t("noDocsUploaded")}
           </p>
         ) : (
           <ul className="entity-list">
             {docs.map((d) => (
               <li key={d.id} className="entity-row">
                 <div className="entity-main">
-                  <div className="entity-primary">{d.label}</div>
-                  <div className="entity-secondary">到期 {d.expire_at || "-"}</div>
+                  <div className="entity-primary">{docTypeLabel(t, d.doc_type)}</div>
+                  <div className="entity-secondary">{t("expiresOn", { date: d.expire_at || "-" })}</div>
                 </div>
-                <span className={`pill ${d.status === "valid" ? "ok" : "warn"}`}>{d.status}</span>
+                <span className={`pill ${d.status === "valid" ? "ok" : "warn"}`}>
+                  {statusLabel(t, d.status)}
+                </span>
               </li>
             ))}
           </ul>

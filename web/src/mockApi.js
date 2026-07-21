@@ -92,7 +92,7 @@ function computeRisk(s, { allowed, reasons, training, driverId, carrierId, visit
     return {
       riskScore: visitType === "temporary" ? 40 : 25,
       riskLevel: visitType === "temporary" ? "medium" : "low",
-      riskFactors: [visitType === "temporary" ? "临时车辆通道" : "自提轻量通道"],
+      riskFactors: [visitType === "temporary" ? "rf_temporary_lane" : "rf_self_pickup_lane"],
       fastLane: visitType === "self_pickup",
     };
   }
@@ -100,32 +100,32 @@ function computeRisk(s, { allowed, reasons, training, driverId, carrierId, visit
   const factors = [];
   if (!allowed) {
     score += 35;
-    factors.push("准入未通过");
+    factors.push("rf_access_denied");
   }
   for (const r of reasons || []) {
     if (r.code?.includes("TRAINING")) {
       score += 18;
-      factors.push("培训风险");
+      factors.push("rf_training");
     }
     if (r.code?.includes("DOC")) {
       score += 12;
-      factors.push(`证件风险`);
+      factors.push("rf_doc");
     }
   }
   if (training?.valid_until) {
     const daysLeft = Math.ceil((new Date(training.valid_until).getTime() - Date.now()) / 86400000);
     if (daysLeft <= 30) {
       score += 15;
-      factors.push(`培训${daysLeft}天内到期`);
+      factors.push(`rf_training_expiring:${daysLeft}`);
     }
   } else if (!training) {
     score += 10;
-    factors.push("无有效培训记录");
+    factors.push("rf_no_training");
   }
   const priorOk = s.visits.filter((v) => v.driver_id === driverId && v.status === "completed").length;
   if (priorOk === 0) {
     score += 14;
-    factors.push("首次到场");
+    factors.push("rf_first_visit");
   }
   const priorBlocks = s.visits.filter(
     (v) =>
@@ -135,7 +135,7 @@ function computeRisk(s, { allowed, reasons, training, driverId, carrierId, visit
   ).length;
   if (priorBlocks > 0) {
     score += Math.min(20, priorBlocks * 5);
-    factors.push(`承运商近30天拦截 ${priorBlocks} 次`);
+    factors.push(`rf_carrier_blocks:${priorBlocks}`);
   }
   score = Math.max(0, Math.min(100, Math.round(score)));
   let riskLevel = "low";
@@ -253,7 +253,7 @@ function seed() {
         checkin_at: now(),
         status: "access_pending",
         block_reasons: [
-          { code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过" },
+          { code: "TRAINING_REQUIRED", message: "TRAINING_REQUIRED" },
         ],
         visit_type: "carrier_inbound",
         selected_options: [],
@@ -620,22 +620,22 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier_inbo
     const today = addDays(0);
     const driver = s.drivers.find((d) => d.id === driverId);
     const vehicle = s.vehicles.find((v) => v.id === vehicleId);
-    if (!driver || driver.status !== "active") reasons.push({ code: "DRIVER_BLOCKED", message: "人员状态不可用" });
-    if (!vehicle || vehicle.status !== "active") reasons.push({ code: "VEHICLE_BLOCKED", message: "车辆状态不可用" });
+    if (!driver || driver.status !== "active") reasons.push({ code: "DRIVER_BLOCKED" });
+    if (!vehicle || vehicle.status !== "active") reasons.push({ code: "VEHICLE_BLOCKED" });
     const training = [...s.training]
       .filter((t) => t.driver_id === driverId && t.course_id === s.course.id && t.quiz_passed)
       .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
     let trainingOk = false;
-    if (!training) reasons.push({ code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过（有效期 1 年）" });
+    if (!training) reasons.push({ code: "TRAINING_REQUIRED" });
     else if (!training.valid_until || training.valid_until < today)
-      reasons.push({ code: "TRAINING_EXPIRED", message: `培训已过期（有效至 ${training.valid_until || "-"}），须复训` });
+      reasons.push({ code: "TRAINING_EXPIRED", validUntil: training.valid_until || "-" });
     else trainingOk = true;
     const idDoc = s.documents.find(
       (x) => x.subject_type === "driver" && x.subject_id === driverId && x.doc_type === "id_card" && x.status === "valid"
     );
-    if (!idDoc) reasons.push({ code: "DOC_MISSING", message: "人员缺少证件: id_card", docType: "id_card" });
+    if (!idDoc) reasons.push({ code: "DOC_MISSING", docType: "id_card" });
     else if (idDoc.expire_at && idDoc.expire_at < today)
-      reasons.push({ code: "DOC_EXPIRED", message: "人员证件过期: id_card", docType: "id_card" });
+      reasons.push({ code: "DOC_EXPIRED", docType: "id_card" });
     const allowed = reasons.length === 0;
     return {
       allowed,
@@ -656,17 +656,17 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier_inbo
   const carrier = s.carriers.find((c) => c.id === carrierId);
   const driver = s.drivers.find((d) => d.id === driverId);
   const vehicle = s.vehicles.find((v) => v.id === vehicleId);
-  if (!carrier || carrier.status !== "active") reasons.push({ code: "CARRIER_BLOCKED", message: "承运商已冻结或不可用" });
-  if (!driver || driver.status !== "active") reasons.push({ code: "DRIVER_BLOCKED", message: "司机状态不可用" });
-  if (!vehicle || vehicle.status !== "active") reasons.push({ code: "VEHICLE_BLOCKED", message: "车辆状态不可用" });
+  if (!carrier || carrier.status !== "active") reasons.push({ code: "CARRIER_BLOCKED" });
+  if (!driver || driver.status !== "active") reasons.push({ code: "DRIVER_BLOCKED" });
+  if (!vehicle || vehicle.status !== "active") reasons.push({ code: "VEHICLE_BLOCKED" });
 
   const training = [...s.training]
     .filter((t) => t.driver_id === driverId && t.course_id === s.course.id && t.quiz_passed)
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   let trainingOk = false;
-  if (!training) reasons.push({ code: "TRAINING_REQUIRED", message: "首次到场或培训失效：须完成安全视频并答题通过（有效期 1 年）" });
+  if (!training) reasons.push({ code: "TRAINING_REQUIRED" });
   else if (!training.valid_until || training.valid_until < today)
-    reasons.push({ code: "TRAINING_EXPIRED", message: `培训已过期（有效至 ${training.valid_until || "-"}），须复训` });
+    reasons.push({ code: "TRAINING_EXPIRED", validUntil: training.valid_until || "-" });
   else trainingOk = true;
 
   const need = {
@@ -675,13 +675,13 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier_inbo
     carrier: ["transport_permit"],
   };
   const check = (stype, id, list) => {
-    for (const t of list) {
+    for (const dt of list) {
       const d = s.documents
-        .filter((x) => x.subject_type === stype && x.subject_id === id && x.doc_type === t && x.status === "valid")
+        .filter((x) => x.subject_type === stype && x.subject_id === id && x.doc_type === dt && x.status === "valid")
         .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
-      if (!d) reasons.push({ code: "DOC_MISSING", message: `${stype}缺少证件: ${t}`, docType: t });
+      if (!d) reasons.push({ code: "DOC_MISSING", docType: dt });
       else if (d.expire_at && d.expire_at < today)
-        reasons.push({ code: "DOC_EXPIRED", message: `${stype}证件过期: ${t}`, docType: t });
+        reasons.push({ code: "DOC_EXPIRED", docType: dt });
     }
   };
   check("driver", driverId, need.driver);
@@ -867,6 +867,7 @@ export async function mockApi(path, options = {}) {
           title: "须完成安全培训",
           body: "首次到场或培训失效，请先完成视频与答题。",
           to: "/driver/training",
+          vars: {},
         });
       } else if (st.valid_until) {
         const days = Math.ceil((new Date(st.valid_until).getTime() - Date.now()) / 86400000);
@@ -877,6 +878,7 @@ export async function mockApi(path, options = {}) {
             title: "培训即将到期",
             body: `有效至 ${st.valid_until}（剩 ${days} 天）`,
             to: "/driver/training",
+            vars: { date: st.valid_until, days },
           });
         }
       }
@@ -888,6 +890,7 @@ export async function mockApi(path, options = {}) {
           title: "报到被拦截",
           body: pending.block_reasons?.[0]?.message || "请补齐培训或证件",
           to: "/driver/visit",
+          vars: {},
         });
       }
       const inspecting = s.visits.find((v) => v.driver_id === user.driver_id && v.status === "inspecting");
@@ -898,18 +901,21 @@ export async function mockApi(path, options = {}) {
           title: "可入场 · 出示通行码",
           body: inspecting.pass_code ? `通行码 ${inspecting.pass_code}` : "请驶至门岗安检",
           to: "/driver/visit",
+          vars: { code: inspecting.pass_code || "" },
         });
       }
       const onsite = s.visits.find((v) =>
         v.driver_id === user.driver_id && ["onsite", "departing"].includes(v.status)
       );
       if (onsite && dwellMinutes(onsite.onsite_at) >= dwellWarnMinutes(s)) {
+        const mins = dwellMinutes(onsite.onsite_at);
         items.push({
           id: `dwell-${onsite.id}`,
           level: "medium",
           title: "在场超时催离",
-          body: `已停留 ${dwellMinutes(onsite.onsite_at)} 分钟`,
+          body: `已停留 ${mins} 分钟`,
           to: "/driver/visit",
+          vars: { mins },
         });
       }
     }
@@ -922,6 +928,7 @@ export async function mockApi(path, options = {}) {
           title: "待双签例外",
           body: `${n} 单等待批准`,
           to: "/admin",
+          vars: { n },
         });
       }
     }

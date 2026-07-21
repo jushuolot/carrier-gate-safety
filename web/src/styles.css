@@ -29,9 +29,10 @@
   --on-accent: #ffffff;
 
   --radius: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 22px;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.045);
+  --shadow-md: 0 12px 40px rgba(0, 0, 0, 0.06);
 
   --font: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "Helvetica Neue", sans-serif;
@@ -212,18 +213,20 @@ h2 {
 /* —— Admin / Gate shell —— */
 .layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
   min-height: 100dvh;
+  background: var(--bg);
 }
 
 .side {
-  background: #000;
-  padding: 28px 16px 32px;
+  background: #0b0b0c;
+  padding: 32px 20px 40px;
   position: sticky;
   top: 0;
   height: 100dvh;
   overflow-y: auto;
   color: rgba(255, 255, 255, 0.72);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .side.side-gate {
@@ -272,9 +275,9 @@ h2 {
 .side a {
   display: block;
   color: rgba(255, 255, 255, 0.64);
-  padding: 11px 14px;
-  border-radius: 12px;
-  margin-bottom: 2px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  margin-bottom: 4px;
   font-weight: 500;
   font-size: 15px;
   text-decoration: none;
@@ -309,17 +312,19 @@ h2 {
 }
 
 .main {
-  padding: 40px 44px 64px;
-  max-width: 980px;
+  padding: 36px clamp(24px, 3.5vw, 56px) 72px;
+  max-width: none;
   width: 100%;
+  min-width: 0;
 }
 
 .topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 28px;
-  gap: 12px;
+  margin-bottom: 32px;
+  gap: 16px;
+  max-width: 1240px;
 }
 
 .brand-inline {
@@ -1945,17 +1950,39 @@ h2 {
 
 @media (min-width: 801px) and (max-width: 1099px) {
   .layout {
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
   .side {
-    padding-left: 12px;
-    padding-right: 12px;
+    padding: 28px 16px 36px;
   }
 
   .main {
-    padding-left: 20px;
-    padding-right: 20px;
+    padding: 36px 32px 64px;
+  }
+
+  .page-block,
+  .gate-page {
+    max-width: 100%;
+  }
+
+  .h5 {
+    max-width: 720px;
+    margin: 28px auto 48px;
+    padding: 32px 36px 40px;
+    background: var(--surface);
+    border-radius: 24px;
+    box-shadow: var(--shadow-md);
+    min-height: auto;
+  }
+
+  body:has(.h5) {
+    background: var(--bg);
+  }
+
+  .grid.stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
   }
 }
 
@@ -1966,5 +1993,336 @@ h2 {
 select {
   max-width: 100%;
 }
+
+/* —— Desktop spacious layout (≥1100px) —— */
+@media (min-width: 1100px) {
+  .layout {
+    grid-template-columns: 288px minmax(0, 1fr);
+  }
+
+  .side {
+    padding: 40px 22px 48px;
+  }
+
+  .side .brand {
+    padding: 8px 14px 36px;
+  }
+
+  .side .brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+  }
+
+  .side .brand-text strong {
+    font-size: 18px;
+  }
+
+  .main {
+    padding: 48px clamp(40px, 5vw, 80px) 96px;
+    background:
+      radial-gradient(ellipse 70% 40% at 100% 0%, rgba(0, 122, 115, 0.05), transparent 55%),
+      var(--bg);
+  }
+
+  .topbar {
+    margin-bottom: 40px;
+    max-width: 1280px;
+  }
+
+  .page-block {
+    max-width: 1280px;
+  }
+
+  .page-head {
+    margin-bottom: 28px;
+  }
+
+  .page-head h2,
+  .gate-head h2,
+  h2 {
+    font-size: 34px;
+    letter-spacing: -0.03em;
+  }
+
+  .page-head .muted,
+  .gate-head .muted {
+    font-size: 16px;
+    margin-top: 10px;
+    max-width: 46em;
+  }
+
+  .card,
+  .panel-card,
+  .filters-card,
+  .status-panel,
+  .action-list {
+    padding: 28px 30px;
+    border-radius: 22px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .grid {
+    gap: 20px;
+  }
+
+  .grid.stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .stat {
+    padding: 28px !important;
+    min-height: 148px;
+  }
+
+  .stat .v {
+    font-size: 48px;
+    margin-top: 14px;
+  }
+
+  .stat .l {
+    font-size: 14px;
+  }
+
+  .masters-grid {
+    gap: 20px;
+  }
+
+  .entity-row {
+    padding: 16px 0;
+  }
+
+  .entity-primary {
+    font-size: 16px;
+  }
+
+  .filters-card {
+    padding: 28px 30px;
+    margin-bottom: 20px;
+  }
+
+  .filters-grid {
+    gap: 16px 18px;
+  }
+
+  .table.table-comfortable th,
+  .table.table-comfortable td {
+    padding: 16px 18px;
+  }
+
+  .table-panel {
+    padding: 12px 8px 8px;
+  }
+
+  .gate-page {
+    max-width: 1280px;
+  }
+
+  .gate-head {
+    margin-bottom: 24px;
+  }
+
+  .gate-kpi {
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+
+  .gate-kpi-item {
+    padding: 20px 18px;
+    border-radius: 18px;
+    min-height: 96px;
+  }
+
+  .gate-kpi-item .v {
+    font-size: 32px;
+    margin-top: 8px;
+  }
+
+  .gate-split {
+    gap: 24px;
+  }
+
+  .gate-list {
+    gap: 14px;
+  }
+
+  .gate-item {
+    padding: 20px 22px;
+    border-radius: 20px;
+    min-height: 104px;
+    gap: 8px;
+  }
+
+  .gate-item strong {
+    font-size: 18px;
+  }
+
+  .gate-detail {
+    padding: 28px 30px;
+    border-radius: 22px;
+  }
+
+  .gate-tools {
+    padding: 28px 30px;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  .gate-check {
+    padding: 14px 16px;
+  }
+
+  /* 司机端：桌面悬浮内容卡，不再像手机窄条 */
+  .h5 {
+    max-width: 880px;
+    margin: 48px auto 72px;
+    padding: 44px 52px 56px;
+    background: var(--surface);
+    border-radius: 28px;
+    box-shadow: var(--shadow-md);
+    min-height: auto;
+  }
+
+  body:has(.h5) {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 122, 115, 0.08), transparent 50%),
+      var(--bg);
+  }
+
+  .h5-name,
+  .h5-title {
+    font-size: 36px;
+  }
+
+  .h5-sub {
+    font-size: 16px;
+    margin-bottom: 28px;
+  }
+
+  .h5 .card {
+    padding: 26px 28px;
+    margin-top: 0;
+  }
+
+  .h5 .card + .card {
+    margin-top: 16px;
+  }
+
+  .action-row {
+    padding: 22px 24px;
+    min-height: 84px;
+  }
+
+  .doc-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .pass-card {
+    padding: 20px 22px;
+    gap: 20px;
+    border-radius: 18px;
+  }
+
+  .pass-code {
+    font-size: 34px;
+  }
+
+  .pass-qr {
+    width: 96px;
+    height: 96px;
+  }
+
+  /* 门户更舒展 */
+  .stage-main {
+    max-width: 980px;
+    padding: 72px 48px 96px;
+  }
+
+  .stage-brand {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+
+  .stage-lead {
+    font-size: 21px;
+    max-width: 22em;
+    margin-bottom: 8px;
+  }
+
+  .stage-hero {
+    margin-bottom: 40px;
+  }
+
+  .stage-entries {
+    gap: 16px;
+  }
+
+  .stage-entry {
+    padding: 26px 28px;
+    min-height: 108px;
+    border-radius: 22px;
+  }
+
+  .stage-entry-body strong {
+    font-size: 20px;
+  }
+
+  .login-panel {
+    max-width: 460px;
+    padding-top: 40px;
+    padding-bottom: 56px;
+  }
+
+  .login-title {
+    font-size: 44px;
+  }
+
+  .login-form {
+    padding: 28px;
+    border-radius: 24px;
+  }
+
+  .login-presets {
+    gap: 10px;
+    padding-top: 24px;
+  }
+
+  .record-list {
+    gap: 14px;
+  }
+
+  .record-card {
+    padding: 20px 22px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .layout {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+
+  .main {
+    padding-left: clamp(56px, 6vw, 96px);
+    padding-right: clamp(56px, 6vw, 96px);
+  }
+
+  .page-block,
+  .gate-page,
+  .topbar {
+    max-width: 1360px;
+  }
+
+  .grid.stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .h5 {
+    max-width: 920px;
+    padding: 48px 56px 64px;
+  }
+}
+
 
 

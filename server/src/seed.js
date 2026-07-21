@@ -182,8 +182,35 @@ db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
   "true"
 );
 
+// 门岗演示待办
+db.prepare(
+  `INSERT INTO visits
+   (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
+    checkin_at, admitted_at, visit_type, selected_options, created_at, updated_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'inspecting', NULL, ?, ?, 'carrier', '[]', ?, ?)`
+).run("visit-demo-inspect", siteId, carrierId, driverOk, veh1, now, now, now, now, now);
+
+db.prepare(
+  `INSERT INTO visits
+   (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
+    checkin_at, visit_type, selected_options, created_at, updated_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'access_pending', ?, ?, 'carrier', '[]', ?, ?)`
+).run(
+  "visit-demo-pending",
+  siteId,
+  carrierId,
+  driverNew,
+  veh2,
+  now,
+  JSON.stringify([{ code: "TRAINING", message: "首次到场或培训失效：须完成安全视频并答题通过" }]),
+  now,
+  now,
+  now
+);
+
 console.log("Seed OK");
 console.log("Site:", siteId);
 console.log("Drivers: 13900000001 (首次) / 13900000002 (已准入)");
 console.log("Self-pickup: 13700000001 / pickup123");
 console.log("Gate: 13800000002 / gate123");
+console.log("Demo visits: inspecting + access_pending");

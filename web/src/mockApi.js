@@ -3,7 +3,7 @@
  * 数据落在 localStorage，刷新可续。
  */
 
-const STORE_KEY = "cgs-pages-demo-v2";
+const STORE_KEY = "cgs-pages-demo-v3";
 
 function addDays(n) {
   const d = new Date();
@@ -87,7 +87,47 @@ function seed() {
       doc("carrier", "carrier-1", "transport_permit", 400),
       doc("driver", "driver-new", "driver_license", 5),
     ],
-    visits: [],
+    visits: [
+      {
+        id: "visit-demo-inspect",
+        site_id: "site-1",
+        carrier_id: "carrier-1",
+        driver_id: "driver-ok",
+        vehicle_id: "veh-1",
+        appointment_at: now(),
+        checkin_at: now(),
+        admitted_at: now(),
+        status: "inspecting",
+        block_reasons: null,
+        visit_type: "carrier",
+        selected_options: [],
+        customer_name: null,
+        customer_phone: null,
+        pickup_ref: null,
+        created_at: now(),
+        updated_at: now(),
+      },
+      {
+        id: "visit-demo-pending",
+        site_id: "site-1",
+        carrier_id: "carrier-1",
+        driver_id: "driver-new",
+        vehicle_id: "veh-2",
+        appointment_at: now(),
+        checkin_at: now(),
+        status: "access_pending",
+        block_reasons: [
+          { code: "TRAINING", message: "首次到场或培训失效：须完成安全视频并答题通过" },
+        ],
+        visit_type: "carrier",
+        selected_options: [],
+        customer_name: null,
+        customer_phone: null,
+        pickup_ref: null,
+        created_at: now(),
+        updated_at: now(),
+      },
+    ],
     audit: [],
     deviceEvents: [],
     devices: [

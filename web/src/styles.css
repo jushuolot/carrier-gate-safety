@@ -979,6 +979,230 @@ h2 {
   display: none;
 }
 
+/* —— Gate console (mobile-first) —— */
+.gate-page {
+  max-width: 720px;
+}
+
+.gate-head {
+  margin-bottom: 16px;
+}
+
+.gate-head h2 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.gate-head .muted {
+  margin: 0;
+  font-size: 15px;
+}
+
+.gate-toast {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 14px;
+}
+
+.gate-toast.ok {
+  background: #e4f5e9;
+  color: var(--ok);
+}
+
+.gate-toast.bad {
+  background: #ffe8eb;
+  color: var(--danger);
+}
+
+.gate-tools {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gate-lpr {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.gate-lpr input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  font-size: 17px;
+  min-height: 48px;
+  background: #fff;
+}
+
+.gate-lpr .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.gate-split {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gate-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+
+.gate-empty {
+  padding: 18px;
+}
+
+.gate-empty p {
+  margin: 0;
+}
+
+.gate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gate-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 88px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gate-item strong {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.gate-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gate-item-go {
+  font-size: 14px;
+  color: var(--teal);
+}
+
+.gate-item.on {
+  box-shadow: inset 0 0 0 2px var(--teal);
+  background: var(--teal-soft);
+}
+
+.gate-item:active {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.gate-item:disabled {
+  opacity: 0.6;
+}
+
+.gate-detail-body {
+  margin-top: 12px;
+}
+
+.gate-subject {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.gate-lights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.gate-reasons {
+  margin: 8px 0;
+  padding-left: 18px;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.gate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.gate-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.gate-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.gate-onsite-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gate-onsite-card strong {
+  font-size: 17px;
+}
+
+@media (min-width: 801px) {
+  .gate-split {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .gate-head h2 {
+    font-size: 32px;
+  }
+
+  .gate-lpr .btn {
+    min-width: 120px;
+  }
+}
+
 /* —— Mobile layout —— */
 @media (max-width: 800px) {
   .layout {
@@ -1058,6 +1282,18 @@ h2 {
 
   .row .btn {
     flex: 1 1 auto;
+  }
+
+  .gate-head h2 {
+    font-size: 24px;
+  }
+
+  .gate-lpr {
+    flex-direction: column;
+  }
+
+  .gate-lpr .btn {
+    width: 100%;
   }
 
   .stage-brand {

@@ -4,60 +4,70 @@ import { api } from "../../api";
 /** 门岗只看在场清单，方便催离场；不做后台分析 */
 export default function GateOnsite() {
   const [items, setItems] = useState([]);
+  const [err, setErr] = useState("");
+
+  async function load() {
+    const d = await api("/visits?status=onsite");
+    setItems(d.items);
+  }
 
   useEffect(() => {
-    api("/visits?status=onsite")
-      .then((d) => setItems(d.items))
-      .catch(console.error);
+    load().catch((e) => setErr(e.message));
     const t = setInterval(() => {
-      api("/visits?status=onsite")
-        .then((d) => setItems(d.items))
-        .catch(() => {});
+      load().catch(() => {});
     }, 8000);
     return () => clearInterval(t);
   }, []);
 
   return (
-    <div>
-      <h2 style={{ marginTop: 0 }}>当前在场</h2>
-      <p className="muted">用于班次盯梢：超时停留可口头催促；规则配置与证件到期不在此页。</p>
-      <div className="card">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>类型</th>
-              <th>对象</th>
-              <th>入场时间</th>
-              <th>停留</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((v) => (
-              <tr key={v.id}>
-                <td>
-                  <span className="pill">{v.visit_type_label || v.visit_type}</span>
-                </td>
-                <td>
-                  {v.visit_type === "self_pickup"
-                    ? `${v.customer_name || "-"} / ${v.pickup_ref || "-"}`
-                    : `${v.plate_no} · ${v.driver_name}`}
-                </td>
-                <td>{v.onsite_at || "-"}</td>
-                <td>{stayText(v.onsite_at)}</td>
-              </tr>
-            ))}
-            {!items.length && (
-              <tr>
-                <td colSpan={4} className="muted">
-                  当前无在场车辆/自提
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+    <div className="gate-page">
+      <header className="gate-head">
+        <h2>当前在场</h2>
+        <p className="muted">班次盯梢：超时停留可口头催促</p>
+      </header>
+
+      {err && <div className="gate-toast bad">{err}</div>}
+
+      {!items.length && (
+        <div className="card gate-empty">
+          <p className="muted">当前无在场车辆/自提</p>
+        </div>
+      )}
+
+      <ul className="gate-list">
+        {items.map((v) => (
+          <li key={v.id} className="card gate-onsite-card">
+            <span className="gate-item-top">
+              <span className="pill">{v.visit_type_label || v.visit_type}</span>
+              <span className="pill ok">在场</span>
+            </span>
+            <strong>
+              {v.visit_type === "self_pickup"
+                ? `${v.customer_name || "-"} / ${v.pickup_ref || "-"}`
+                : `${v.plate_no} · ${v.driver_name}`}
+            </strong>
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+              入场 {formatTime(v.onsite_at)} · 已停留 {stayText(v.onsite_at)}
+            </p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
+}
+
+function formatTime(onsiteAt) {
+  if (!onsiteAt) return "-";
+  try {
+    return new Date(onsiteAt).toLocaleString("zh-CN", {
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return onsiteAt;
+  }
 }
 
 function stayText(onsiteAt) {

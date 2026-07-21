@@ -3,13 +3,14 @@
  * 数据落在 localStorage，刷新可续。
  */
 
-const STORE_KEY = "cgs-pages-demo-v6";
+const STORE_KEY = "cgs-pages-demo-v7";
 const LEGACY_STORE_KEYS = [
   "cgs-pages-demo-v1",
   "cgs-pages-demo-v2",
   "cgs-pages-demo-v3",
   "cgs-pages-demo-v4",
   "cgs-pages-demo-v5",
+  "cgs-pages-demo-v6",
 ];
 
 const CAP = {
@@ -438,6 +439,14 @@ function makeArchiveKey(plateNo, at = new Date()) {
 
 function clearLegacyStores() {
   try {
+    const kill = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("cgs-pages-demo")) kill.push(k);
+    }
+    for (const k of kill) {
+      if (k !== STORE_KEY) localStorage.removeItem(k);
+    }
     for (const k of LEGACY_STORE_KEYS) localStorage.removeItem(k);
   } catch {
     /* ignore */
@@ -528,9 +537,15 @@ function save(s) {
 
 /** 供登录等场景：主动腾出配额 */
 export function reclaimDemoStorage() {
-  clearLegacyStores();
   try {
-    localStorage.removeItem(STORE_KEY);
+    const kill = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith("cgs-pages-demo") || k === "cgs_token" || k === "cgs_user")) {
+        kill.push(k);
+      }
+    }
+    for (const k of kill) localStorage.removeItem(k);
   } catch {
     /* ignore */
   }
@@ -759,8 +774,7 @@ export async function mockApi(path, options = {}) {
     const u = s.users.find((x) => x.phone === body.phone && x.password === body.password);
     if (!u) fail("手机号或密码错误", 401);
     const safe = publicUser(u);
-    audit(s, safe, "login", "user", safe.id, {});
-    save(s);
+    // 演示环境不写 login 审计，减少配额压力
     return ok({ token: safe.id, user: safe });
   }
 

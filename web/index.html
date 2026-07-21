@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <title>承运商安全 · Gate Safety</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -11,6 +12,41 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!-- 在 React 加载前清理演示库，避免旧版 v5 占满配额导致无法登录 -->
+    <script>
+      (function () {
+        try {
+          var params = new URLSearchParams(location.search || "");
+          var hashParams = new URLSearchParams((location.hash.split("?")[1] || ""));
+          var force = params.get("reset") === "1" || hashParams.get("reset") === "1";
+          var keys = [];
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (!k) continue;
+            if (
+              k.indexOf("cgs-pages-demo") === 0 ||
+              k === "cgs_token" ||
+              k === "cgs_user"
+            ) {
+              keys.push(k);
+            }
+          }
+          var hasLegacy = keys.some(function (k) {
+            return /cgs-pages-demo-v[1-5]$/.test(k);
+          });
+          var total = 0;
+          for (var j = 0; j < localStorage.length; j++) {
+            var kk = localStorage.key(j);
+            if (kk) total += (localStorage.getItem(kk) || "").length;
+          }
+          if (force || hasLegacy || total > 1500000) {
+            keys.forEach(function (k) {
+              localStorage.removeItem(k);
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

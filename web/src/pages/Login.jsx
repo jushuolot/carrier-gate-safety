@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, setSession } from "../api";
+import { isPagesDemo, reclaimDemoStorage } from "../mockApi";
 
 const PRESETS = {
   driver: { phone: "13900000001", password: "driver123", tip: "首次司机" },
@@ -12,6 +13,10 @@ const PRESETS = {
   carrier: { phone: "13800000003", password: "carrier123", tip: "承运商" },
 };
 
+function isQuotaError(msg = "") {
+  return /quota|setItem|Storage|存储/i.test(String(msg));
+}
+
 export default function Login() {
   const [params] = useSearchParams();
   const role = params.get("role") || "admin";
@@ -22,6 +27,24 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
   const tips = useMemo(() => Object.entries(PRESETS), []);
+
+  function wipeDemoCache() {
+    if (isPagesDemo()) reclaimDemoStorage();
+    else {
+      try {
+        const kill = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith("cgs-pages-demo") || k === "cgs_token" || k === "cgs_user")) {
+            kill.push(k);
+          }
+        }
+        kill.forEach((k) => localStorage.removeItem(k));
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -36,6 +59,24 @@ export default function Login() {
       const r = data.user.role;
       nav(r === "driver" ? "/driver" : r === "gate" ? "/gate" : "/admin");
     } catch (ex) {
+      if (isQuotaError(ex.message)) {
+        wipeDemoCache();
+        try {
+          const data = await api("/auth/login", {
+            method: "POST",
+            body: { phone, password },
+          });
+          setSession(data.token, data.user);
+          const r = data.user.role;
+          nav(r === "driver" ? "/driver" : r === "gate" ? "/gate" : "/admin");
+          return;
+        } catch (ex2) {
+          setErr(
+            "本地演示缓存已满。请点下方「清除演示缓存」，或用无痕窗口打开页面后再登录。"
+          );
+          return;
+        }
+      }
       setErr(ex.message);
     } finally {
       setLoading(false);
@@ -87,6 +128,22 @@ export default function Login() {
             {loading ? "登录中…" : "继续"}
           </button>
         </form>
+
+        {isPagesDemo() && (
+          <button
+            className="btn btn-block"
+            type="button"
+            style={{ marginTop: 10 }}
+            onClick={() => {
+              wipeDemoCache();
+              setErr("");
+              window.location.hash = `#/login?role=${role}&reset=1`;
+              window.location.reload();
+            }}
+          >
+            清除演示缓存并刷新
+          </button>
+        )}
 
         <div className="login-presets" aria-label="演示账号">
           {tips.map(([k, v]) => (

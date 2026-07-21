@@ -19,9 +19,7 @@ export default function DriverDocs() {
   const [lastOcr, setLastOcr] = useState(null);
 
   async function reload() {
-    const data = await api(
-      `/documents?subjectType=driver&subjectId=${user.driver_id}`
-    );
+    const data = await api(`/documents?subjectType=driver&subjectId=${user.driver_id}`);
     setDocs(data.items);
   }
 
@@ -69,7 +67,7 @@ export default function DriverDocs() {
             onChange={(e) => setExpireDays(e.target.value)}
           />
         </div>
-        <div className="row">
+        <div className="doc-actions">
           {DRIVER_DOCS.map((d) => (
             <button key={d.type} className="btn primary" type="button" onClick={() => runOcr(d.type)}>
               上传并识别{d.label}
@@ -81,36 +79,34 @@ export default function DriverDocs() {
       {lastOcr && (
         <div className="card" style={{ marginTop: 12 }}>
           <strong>OCR 结果</strong>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>
+          <pre className="result-pre" style={{ marginTop: 8 }}>
             {JSON.stringify(lastOcr.ocr.fields, null, 2)}
           </pre>
         </div>
       )}
 
-      <div className="card" style={{ marginTop: 12 }}>
-        <strong>我的证件</strong>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>类型</th>
-              <th>到期</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="card panel-card" style={{ marginTop: 12 }}>
+        <div className="panel-card-head">
+          <strong>我的证件</strong>
+          <span className="muted">{docs.length} 份</span>
+        </div>
+        {!docs.length ? (
+          <p className="muted" style={{ margin: "12px 0 0" }}>
+            尚未上传证件
+          </p>
+        ) : (
+          <ul className="entity-list">
             {docs.map((d) => (
-              <tr key={d.id}>
-                <td>{d.label}</td>
-                <td>{d.expire_at}</td>
-                <td>
-                  <span className={`pill ${d.status === "valid" ? "ok" : "warn"}`}>
-                    {d.status}
-                  </span>
-                </td>
-              </tr>
+              <li key={d.id} className="entity-row">
+                <div className="entity-main">
+                  <div className="entity-primary">{d.label}</div>
+                  <div className="entity-secondary">到期 {d.expire_at || "-"}</div>
+                </div>
+                <span className={`pill ${d.status === "valid" ? "ok" : "warn"}`}>{d.status}</span>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        )}
       </div>
       {msg && <p className="muted">{msg}</p>}
     </div>

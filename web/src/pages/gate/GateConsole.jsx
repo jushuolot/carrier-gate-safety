@@ -184,7 +184,7 @@ export default function GateConsole() {
 
   return (
     <div className="gate-page">
-      <header className="gate-head">
+      <header className="gate-head page-head">
         <h2>门岗指挥台</h2>
         <p className="muted">风险排序 · 通行码 · 证据放行</p>
       </header>
@@ -222,24 +222,32 @@ export default function GateConsole() {
 
       <section className="card gate-tools">
         <strong>当班快操</strong>
-        <div className="gate-lpr">
-          <input
-            value={passCode}
-            onChange={(e) => setPassCode(e.target.value.toUpperCase())}
-            placeholder="通行码"
-            aria-label="通行码"
-          />
-          <button className="btn primary" type="button" onClick={lookupPass} disabled={busy}>
-            打开
-          </button>
+        <div className="filters-grid" style={{ marginTop: 10 }}>
+          <div className="field" style={{ margin: 0 }}>
+            <label>通行码</label>
+            <div className="gate-lpr">
+              <input
+                value={passCode}
+                onChange={(e) => setPassCode(e.target.value.toUpperCase())}
+                placeholder="如 GATE01"
+                aria-label="通行码"
+              />
+              <button className="btn primary" type="button" onClick={lookupPass} disabled={busy}>
+                打开
+              </button>
+            </div>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>车牌 LPR</label>
+            <div className="gate-lpr">
+              <input value={plate} onChange={(e) => setPlate(e.target.value)} aria-label="车牌" />
+              <button className="btn" type="button" onClick={simulateLpr} disabled={busy}>
+                匹配
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="gate-lpr">
-          <input value={plate} onChange={(e) => setPlate(e.target.value)} aria-label="车牌" />
-          <button className="btn" type="button" onClick={simulateLpr} disabled={busy}>
-            LPR 匹配
-          </button>
-        </div>
-        <button className="btn btn-block" type="button" onClick={addDemoJob} disabled={busy}>
+        <button className="btn btn-block" type="button" onClick={addDemoJob} disabled={busy} style={{ marginTop: 4 }}>
           {busy ? "处理中…" : "加入演示待办"}
         </button>
       </section>

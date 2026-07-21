@@ -105,7 +105,7 @@ export default function DriverTraining() {
         </div>
         <div className="row">
           <button
-            className="btn primary"
+            className="btn primary btn-block"
             type="button"
             onClick={tickWatch}
             disabled={videoDone || saving}
@@ -139,7 +139,7 @@ export default function DriverTraining() {
             </div>
           ))}
           <button
-            className="btn primary"
+            className="btn primary btn-block"
             type="button"
             onClick={submitQuiz}
             disabled={saving}

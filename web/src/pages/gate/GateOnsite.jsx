@@ -54,7 +54,7 @@ export default function GateOnsite() {
 
   return (
     <div className="gate-page">
-      <header className="gate-head">
+      <header className="gate-head page-head">
         <h2>在场 / 离场双签</h2>
         <p className="muted">SLA {warn} 分钟超时高亮 · 离场须司机+门岗双签后扫码确认</p>
       </header>

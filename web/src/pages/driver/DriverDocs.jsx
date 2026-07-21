@@ -22,8 +22,9 @@ export default function DriverDocs() {
   }
 
   useEffect(() => {
+    if (!user?.driver_id) return;
     reload().catch((e) => setMsg(e.message));
-  }, [user]);
+  }, [user?.driver_id]);
 
   async function runOcr(docType) {
     setMsg("OCR 识别中…");

@@ -23,33 +23,42 @@ const ACTIONS = [
 
 export default function DriverHome() {
   const user = getUser();
+  const driverId = user?.driver_id;
+  const carrierId = user?.carrier_id;
   const [status, setStatus] = useState(null);
   const [access, setAccess] = useState(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
+    if (!driverId) return;
+    let cancelled = false;
     (async () => {
       try {
-        const st = await api(`/training/status?driverId=${user.driver_id}`);
+        const st = await api(`/training/status?driverId=${driverId}`);
+        if (cancelled) return;
         setStatus(st);
-        const vehicles = await api(`/vehicles?carrierId=${user.carrier_id}`);
+        const vehicles = await api(`/vehicles?carrierId=${carrierId}`);
+        if (cancelled) return;
         const vehicleId = vehicles.items[0]?.id;
         if (vehicleId) {
           const ev = await api("/access/evaluate", {
             method: "POST",
             body: {
-              driverId: user.driver_id,
+              driverId,
               vehicleId,
-              carrierId: user.carrier_id,
+              carrierId,
             },
           });
-          setAccess(ev);
+          if (!cancelled) setAccess(ev);
         }
       } catch (e) {
-        setErr(e.message);
+        if (!cancelled) setErr(e.message);
       }
     })();
-  }, [user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [driverId, carrierId]);
 
   const lights = [
     {

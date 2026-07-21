@@ -24,14 +24,23 @@ export default function DriverVisit() {
   );
 
   useEffect(() => {
+    if (!user?.carrier_id) return;
+    let cancelled = false;
     (async () => {
       const meta = await api("/meta/visit-types");
+      if (cancelled) return;
       setTypes(meta.items || []);
       const v = await api(`/vehicles?carrierId=${user.carrier_id}`);
+      if (cancelled) return;
       setVehicles(v.items);
       setVehicleId(v.items[0]?.id || "");
-    })().catch((e) => setMsg(e.message));
-  }, [user]);
+    })().catch((e) => {
+      if (!cancelled) setMsg(e.message);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.carrier_id]);
 
   useEffect(() => {
     setSelectedOptions([]);

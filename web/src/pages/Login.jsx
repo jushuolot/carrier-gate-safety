@@ -45,7 +45,6 @@ export default function Login() {
   return (
     <div className="stage stage-login">
       <div className="stage-photo" aria-hidden />
-      <div className="stage-veil" aria-hidden />
 
       <header className="stage-nav">
         <Link className="stage-logo" to="/">
@@ -58,8 +57,8 @@ export default function Login() {
       </header>
 
       <div className="login-panel">
-        <p className="login-kicker">登录</p>
-        <h1 className="login-title">承运商安全</h1>
+        <p className="login-kicker">承运商安全</p>
+        <h1 className="login-title">登录</h1>
         <p className="login-sub">{preset.tip}</p>
 
         <form className="login-form" onSubmit={submit}>
@@ -85,7 +84,7 @@ export default function Login() {
           </div>
           {err && <p className="login-err">{err}</p>}
           <button className="btn primary btn-block" disabled={loading} type="submit">
-            {loading ? "登录中…" : "进入系统"}
+            {loading ? "登录中…" : "继续"}
           </button>
         </form>
 

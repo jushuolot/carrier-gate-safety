@@ -13,17 +13,17 @@ const ENTRIES = [
   {
     to: "/login?role=driver",
     title: "司机 / 自提",
-    desc: "培训 · 证件 · 报到",
+    desc: "培训、证件与报到",
   },
   {
     to: "/login?role=gate",
     title: "门岗作业台",
-    desc: "安检 · 放行 · 在场",
+    desc: "安检、放行与在场",
   },
   {
     to: "/login?role=admin",
     title: "管理后台",
-    desc: "看板 · 台账 · 审计",
+    desc: "看板、台账与审计",
   },
 ];
 
@@ -34,7 +34,6 @@ export default function Portal() {
   return (
     <div className="stage">
       <div className="stage-photo" aria-hidden />
-      <div className="stage-veil" aria-hidden />
 
       <header className="stage-nav">
         <div className="stage-logo">
@@ -44,7 +43,7 @@ export default function Portal() {
         {pagesDemo && <span className="stage-badge">Demo</span>}
         {user && (
           <Link className="stage-nav-link" to={homeFor(user)}>
-            继续 · {user.name}
+            继续
           </Link>
         )}
       </header>
@@ -52,7 +51,7 @@ export default function Portal() {
       <main className="stage-main">
         <div className="stage-hero">
           <h1 className="stage-brand">承运商安全</h1>
-          <p className="stage-lead">到离场准入 · 培训门禁 · 门岗放行</p>
+          <p className="stage-lead">到离场准入，一站完成培训、证件与放行。</p>
         </div>
 
         <nav className="stage-entries" aria-label="入口">
@@ -61,14 +60,14 @@ export default function Portal() {
               key={e.to}
               className="stage-entry"
               to={e.to}
-              style={{ animationDelay: `${0.12 + i * 0.08}s` }}
+              style={{ animationDelay: `${0.08 + i * 0.06}s` }}
             >
               <span className="stage-entry-body">
                 <strong>{e.title}</strong>
                 <span>{e.desc}</span>
               </span>
               <span className="stage-entry-go" aria-hidden>
-                →
+                ›
               </span>
             </Link>
           ))}

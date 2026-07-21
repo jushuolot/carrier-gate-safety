@@ -1,4 +1,4 @@
-import { isPagesDemo, mockApi } from "./mockApi";
+import { isPagesDemo, mockApi, reclaimDemoStorage } from "./mockApi";
 
 const TOKEN_KEY = "cgs_token";
 const USER_KEY = "cgs_user";
@@ -16,8 +16,27 @@ export function getUser() {
 }
 
 export function setSession(token, user) {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch (e) {
+    // Pages 演示库占满配额时，腾出空间后再写会话
+    if (isPagesDemo()) {
+      reclaimDemoStorage();
+      try {
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
+    throw new Error(
+      e?.message?.includes("quota") || e?.name === "QuotaExceededError"
+        ? "浏览器本地存储已满，请清除本站数据后重试"
+        : e.message || "无法保存登录状态"
+    );
+  }
 }
 
 export function clearSession() {

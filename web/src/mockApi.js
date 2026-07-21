@@ -3,7 +3,22 @@
  * 数据落在 localStorage，刷新可续。
  */
 
-const STORE_KEY = "cgs-pages-demo-v5";
+const STORE_KEY = "cgs-pages-demo-v6";
+const LEGACY_STORE_KEYS = [
+  "cgs-pages-demo-v1",
+  "cgs-pages-demo-v2",
+  "cgs-pages-demo-v3",
+  "cgs-pages-demo-v4",
+  "cgs-pages-demo-v5",
+];
+
+const CAP = {
+  audit: 40,
+  deviceEvents: 24,
+  visits: 36,
+  documents: 60,
+  training: 24,
+};
 
 function addDays(n) {
   const d = new Date();
@@ -421,10 +436,46 @@ function makeArchiveKey(plateNo, at = new Date()) {
   return `${ymd}_${plate}`;
 }
 
+function clearLegacyStores() {
+  try {
+    for (const k of LEGACY_STORE_KEYS) localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 压缩演示库，避免 localStorage 配额打满导致登录失败 */
+function pruneStore(s) {
+  if (!s || typeof s !== "object") return s;
+  if (Array.isArray(s.audit) && s.audit.length > CAP.audit) {
+    s.audit = s.audit.slice(0, CAP.audit);
+  }
+  if (Array.isArray(s.deviceEvents) && s.deviceEvents.length > CAP.deviceEvents) {
+    s.deviceEvents = s.deviceEvents.slice(0, CAP.deviceEvents);
+  }
+  if (Array.isArray(s.documents) && s.documents.length > CAP.documents) {
+    s.documents = s.documents.slice(0, CAP.documents);
+  }
+  if (Array.isArray(s.training) && s.training.length > CAP.training) {
+    s.training = s.training.slice(0, CAP.training);
+  }
+  if (Array.isArray(s.visits) && s.visits.length > CAP.visits) {
+    const keepIds = new Set(["visit-demo-inspect", "visit-demo-pending"]);
+    const demos = s.visits.filter((v) => keepIds.has(v.id));
+    const rest = s.visits.filter((v) => !keepIds.has(v.id)).slice(0, CAP.visits - demos.length);
+    s.visits = [...demos, ...rest];
+  }
+  return s;
+}
+
 function load() {
+  clearLegacyStores();
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return pruneStore(parsed);
+    }
   } catch {
     /* ignore */
   }
@@ -434,7 +485,55 @@ function load() {
 }
 
 function save(s) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(s));
+  pruneStore(s);
+  const payload = JSON.stringify(s);
+  try {
+    localStorage.setItem(STORE_KEY, payload);
+    return;
+  } catch (e) {
+    const quota =
+      e?.name === "QuotaExceededError" ||
+      e?.code === 22 ||
+      /quota|exceeded/i.test(String(e?.message || e));
+    if (!quota) throw e;
+  }
+
+  // 配额恢复：清旧键 → 再裁剪 → 仍失败则重置种子
+  clearLegacyStores();
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch {
+    /* ignore */
+  }
+  s.audit = (s.audit || []).slice(0, 10);
+  s.deviceEvents = (s.deviceEvents || []).slice(0, 8);
+  s.visits = (s.visits || [])
+    .filter((v) => ["visit-demo-inspect", "visit-demo-pending"].includes(v.id) || v.status !== "completed")
+    .slice(0, 12);
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+    return;
+  } catch {
+    /* fall through */
+  }
+  const fresh = seed();
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(fresh));
+    Object.keys(s).forEach((k) => delete s[k]);
+    Object.assign(s, fresh);
+  } catch (e2) {
+    throw new Error("浏览器本地存储已满，请清理本站数据后重试（设置 → 清除网站数据）");
+  }
+}
+
+/** 供登录等场景：主动腾出配额 */
+export function reclaimDemoStorage() {
+  clearLegacyStores();
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 function publicUser(u) {

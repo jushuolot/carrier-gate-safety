@@ -4,8 +4,9 @@
  */
 
 import { localDocOk, verifyHazmat } from "../../server/src/services/hazmatVerify.js";
+import { buildDemoOpsBundle, computeOpsProductStats } from "../../shared/generateDemoOps.js";
 
-const STORE_KEY = "cgs-pages-demo-v8";
+const STORE_KEY = "cgs-pages-demo-v9";
 const LEGACY_STORE_KEYS = [
   "cgs-pages-demo-v1",
   "cgs-pages-demo-v2",
@@ -14,14 +15,15 @@ const LEGACY_STORE_KEYS = [
   "cgs-pages-demo-v5",
   "cgs-pages-demo-v6",
   "cgs-pages-demo-v7",
+  "cgs-pages-demo-v8",
 ];
 
 const CAP = {
-  audit: 40,
-  deviceEvents: 24,
-  visits: 36,
-  documents: 60,
-  training: 24,
+  audit: 80,
+  deviceEvents: 40,
+  visits: 80,
+  documents: 100,
+  training: 40,
 };
 
 function addDays(n) {
@@ -155,7 +157,7 @@ function computeRisk(s, { allowed, reasons, training, driverId, carrierId, visit
 function seed() {
   const courseId = "course-1";
   const qids = ["q1", "q2", "q3", "q4", "q5"];
-  return {
+  const base = {
     users: [
       { id: "u-admin", phone: "13800000000", name: "系统管理员", password: "admin123", role: "admin", carrier_id: null, driver_id: null },
       { id: "u-ehs", phone: "13800000001", name: "EHS安全员", password: "ehs123", role: "ehs", carrier_id: null, driver_id: null },
@@ -375,6 +377,17 @@ function seed() {
       { id: "dahua-lpr-stub", type: "lpr", name: "大华车牌识别（待对接）", online: false },
     ],
   };
+  return enrichSeedWithOps(base);
+}
+
+function enrichSeedWithOps(base) {
+  const ops = buildDemoOpsBundle({ nid, now });
+  base.documents = [...base.documents, ...ops.documents].slice(0, CAP.documents);
+  base.training = [...base.training, ...ops.training].slice(0, CAP.training);
+  base.visits = [...base.visits, ...ops.visits].slice(0, CAP.visits);
+  base.audit = [...ops.audit, ...(base.audit || [])].slice(0, CAP.audit);
+  base.opsMeta = { ...ops.summary, generatedAt: ops.generatedAt };
+  return base;
 }
 
 function doc(subjectType, subjectId, docType, days) {
@@ -930,13 +943,28 @@ export async function mockApi(path, options = {}) {
   if (p === "/dashboard") {
     const today = addDays(0);
     const warn = dwellWarnMinutes(s);
-    const onsiteRows = s.visits.filter((v) => v.status === "onsite");
+    const onsiteRows = s.visits.filter((v) => v.status === "onsite" || v.status === "departing");
+    const product = computeOpsProductStats(s.visits, s.documents, {
+      today,
+      addDaysFn: addDays,
+      dwellWarn: warn,
+      dwellMinutesFn: dwellMinutes,
+    });
+    const plateOf = (id) => s.vehicles.find((v) => v.id === id)?.plate_no || "-";
+    product.recentCompleted = product.recentCompleted.map((r) => {
+      const v = s.visits.find((x) => x.id === r.id);
+      return {
+        ...r,
+        plate: v ? plateOf(v.vehicle_id) : "-",
+        driver_name: s.drivers.find((d) => d.id === v?.driver_id)?.name || "-",
+      };
+    });
     return ok({
-      onsite: onsiteRows.length,
+      onsite: s.visits.filter((v) => v.status === "onsite").length,
       todayAppointed: s.visits.filter((v) => (v.created_at || "").startsWith(today)).length,
       blocked: s.visits.filter((v) => ["access_pending", "rejected"].includes(v.status)).length,
-      expiring30d: s.documents.filter((d) => d.expire_at && d.expire_at <= addDays(30)).length,
-      expired: s.documents.filter((d) => d.expire_at && d.expire_at < addDays(0)).length,
+      expiring30d: s.documents.filter((d) => d.expire_at && d.expire_at <= addDays(30) && d.expire_at >= today).length,
+      expired: s.documents.filter((d) => d.expire_at && d.expire_at < today).length,
       exceptionRequested: s.visits.filter((v) => v.status === "exception_requested").length,
       inspecting: s.visits.filter((v) => v.status === "inspecting").length,
       accessPending: s.visits.filter((v) => v.status === "access_pending").length,
@@ -945,7 +973,20 @@ export async function mockApi(path, options = {}) {
       ).length,
       dwellOver: onsiteRows.filter((v) => dwellMinutes(v.onsite_at) >= warn).length,
       dwellWarnMinutes: warn,
+      completed14d: product.completed14d,
+      hazmatOpen: product.hazmatOpen,
+      byType: product.byType,
+      recentCompleted: product.recentCompleted,
+      openStatuses: product.openStatuses,
+      opsMeta: s.opsMeta || null,
     });
+  }
+
+  if (p === "/demo/regenerate" && method === "POST") {
+    if (!["admin", "ehs"].includes(user.role)) fail("无权限", 403);
+    const fresh = seed();
+    save(fresh);
+    return ok({ ok: true, opsMeta: fresh.opsMeta, visitCount: fresh.visits.length });
   }
 
   if (p === "/gate/kpi") {

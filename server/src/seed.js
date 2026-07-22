@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { db, migrate } from "./db.js";
+import { applyDemoOps } from "./seedOps.js";
 
 function addDays(days) {
   const d = new Date();
@@ -321,10 +322,12 @@ db.prepare(
   now
 );
 
+const opsSummary = applyDemoOps(db);
+
 console.log("Seed OK");
 console.log("Site:", siteId);
 console.log("Drivers: 13900000001 (首次) / 13900000002 (已准入)");
 console.log("Hazmat demo pass codes: HAZ001 (ok) / HAZBAD (directory block)");
 console.log("Self-pickup: 13700000001 / pickup123");
 console.log("Gate: 13800000002 / gate123");
-console.log("Demo visits: inspecting(GATE01) + access_pending(WAIT88)");
+console.log("Demo visits: inspecting(GATE01) + access_pending(WAIT88) + ops bundle", opsSummary);

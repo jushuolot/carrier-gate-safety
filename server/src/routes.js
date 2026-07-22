@@ -125,9 +125,45 @@ export function createApiRouter({ deviceHub }) {
       )
       .get().c;
     const onsiteRows = db
-      .prepare(`SELECT onsite_at FROM visits WHERE status = 'onsite'`)
+      .prepare(`SELECT onsite_at FROM visits WHERE status IN ('onsite','departing')`)
       .all();
     const dwellOver = onsiteRows.filter((r) => isDwellOver(r.onsite_at)).length;
+    const completed14d = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM visits
+         WHERE status = 'completed' AND date(checkout_at) >= date('now', '-13 days')`
+      )
+      .get().c;
+    const hazmatOpen = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM visits
+         WHERE selected_options LIKE '%hazmat%'
+           AND status NOT IN ('completed','rejected')`
+      )
+      .get().c;
+    const typeRows = db
+      .prepare(`SELECT visit_type AS t, COUNT(*) AS c FROM visits GROUP BY visit_type`)
+      .all();
+    const byType = Object.fromEntries(typeRows.map((r) => [normalizeVisitType(r.t), r.c]));
+    const recentCompleted = db
+      .prepare(
+        `SELECT v.id, v.archive_key, v.visit_type, v.checkout_at, v.selected_options, vh.plate_no AS plate, d.name AS driver_name
+         FROM visits v
+         JOIN vehicles vh ON vh.id = v.vehicle_id
+         JOIN drivers d ON d.id = v.driver_id
+         WHERE v.status = 'completed'
+         ORDER BY v.checkout_at DESC LIMIT 6`
+      )
+      .all()
+      .map((r) => ({
+        id: r.id,
+        archive_key: r.archive_key,
+        visit_type: r.visit_type,
+        checkout_at: r.checkout_at,
+        plate: r.plate,
+        driver_name: r.driver_name,
+        hazmat: String(r.selected_options || "").includes("hazmat"),
+      }));
 
     res.json({
       onsite,
@@ -141,6 +177,10 @@ export function createApiRouter({ deviceHub }) {
       releasedToday,
       dwellOver,
       dwellWarnMinutes: dwellWarnMinutes(),
+      completed14d,
+      hazmatOpen,
+      byType,
+      recentCompleted,
     });
   });
 

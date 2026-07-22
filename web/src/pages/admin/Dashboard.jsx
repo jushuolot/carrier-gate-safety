@@ -62,23 +62,48 @@ export default function Dashboard() {
     }
   }
 
+  async function regenerateOps() {
+    if (!window.confirm(t("regenOpsConfirm"))) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const r = await api("/demo/regenerate", { method: "POST", body: {} });
+      setMsg(t("regenOpsDone", { n: r.visitCount || 0 }));
+      await load();
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!dash) return <p className="muted">{t("loading")}</p>;
+
+  const byType = dash.byType || {};
 
   return (
     <div className="page-block">
-      <header className="page-head">
-        <h2>{t("pageDashboard")}</h2>
-        <p className="muted">
-          {user?.role === "admin" || user?.role === "ehs" ? (
-            <>
-              {" "}
-              <Link to="/gate">{t("navGate")}</Link>
-            </>
-          ) : null}
-        </p>
+      <header className="page-head page-head-row">
+        <div>
+          <h2>{t("pageDashboard")}</h2>
+          <p className="muted">
+            {t("opsDashboardHint")}
+            {user?.role === "admin" || user?.role === "ehs" ? (
+              <>
+                {" · "}
+                <Link to="/gate">{t("navGate")}</Link>
+              </>
+            ) : null}
+          </p>
+        </div>
+        {(user?.role === "admin" || user?.role === "ehs") && (
+          <button className="btn" type="button" disabled={busy} onClick={regenerateOps}>
+            {t("regenOpsData")}
+          </button>
+        )}
       </header>
 
-      {msg && <div className="gate-toast ok">{msg}</div>}
+      {msg && <div className={`gate-toast ${/失败|错误|fail|error/i.test(msg) ? "bad" : "ok"}`}>{msg}</div>}
 
       <div className="grid stats">
         <div className="card stat">
@@ -104,6 +129,14 @@ export default function Dashboard() {
         <div className="card stat">
           <div className="l">{t("statExpiring30d")}</div>
           <div className="v">{dash.expiring30d}</div>
+        </div>
+        <div className="card stat">
+          <div className="l">{t("statCompleted14d")}</div>
+          <div className="v">{dash.completed14d ?? 0}</div>
+        </div>
+        <div className="card stat">
+          <div className="l">{t("statHazmatOpen")}</div>
+          <div className="v">{dash.hazmatOpen ?? 0}</div>
         </div>
       </div>
 
@@ -146,6 +179,43 @@ export default function Dashboard() {
 
       <div className="grid grid-2" style={{ marginTop: 16 }}>
         <div className="card">
+          <strong>{t("opsMixTitle")}</strong>
+          <p className="muted">{t("opsMixDesc")}</p>
+          <ul className="entity-list">
+            <li className="entity-row">
+              <div className="entity-primary">{t("vt_carrier_inbound")}</div>
+              <span className="pill">{byType.carrier_inbound || 0}</span>
+            </li>
+            <li className="entity-row">
+              <div className="entity-primary">{t("vt_carrier_outbound")}</div>
+              <span className="pill">{byType.carrier_outbound || 0}</span>
+            </li>
+            <li className="entity-row">
+              <div className="entity-primary">{t("vt_self_pickup")}</div>
+              <span className="pill">{byType.self_pickup || 0}</span>
+            </li>
+            <li className="entity-row">
+              <div className="entity-primary">{t("vt_temporary")}</div>
+              <span className="pill">{byType.temporary || 0}</span>
+            </li>
+          </ul>
+          <strong style={{ display: "block", marginTop: 14 }}>{t("recentCompletedTitle")}</strong>
+          <ul className="entity-list">
+            {(dash.recentCompleted || []).map((r) => (
+              <li key={r.id} className="entity-row">
+                <div className="entity-main">
+                  <div className="entity-primary">
+                    {r.plate} {r.hazmat ? "· HAZ" : ""}
+                  </div>
+                  <div className="entity-secondary">{r.archive_key || r.checkout_at?.slice(0, 16)}</div>
+                </div>
+              </li>
+            ))}
+            {!(dash.recentCompleted || []).length && <li className="muted">{t("noRecentCompleted")}</li>}
+          </ul>
+        </div>
+
+        <div className="card">
           <strong>{t("recentDocRisk")}</strong>
           <p className="muted">{t("recentDocRiskDesc")}</p>
           <ul className="entity-list">
@@ -163,17 +233,7 @@ export default function Dashboard() {
             {!expiring.length && <li className="muted">{t("noExpiring14d")}</li>}
           </ul>
           <Link to="/admin/documents">{t("viewAllExpiring")}</Link>
-        </div>
-
-        <div className="card">
-          <strong>{t("smartOrchestration")}</strong>
-          <ul style={{ marginTop: 10, paddingLeft: 18, lineHeight: 1.7 }}>
-            <li>{t("orchSlotCapacity")}</li>
-            <li>{t("orchRiskScore")}</li>
-            <li>{t("orchPassLpr")}</li>
-            <li>{t("orchDualSign")}</li>
-          </ul>
-          <div className="row" style={{ marginTop: 12 }}>
+          <div className="row" style={{ marginTop: 16 }}>
             <Link className="btn" to="/admin/visits">
               {t("openLedger")}
             </Link>

@@ -1,6 +1,7 @@
 import { db } from "../db.js";
 import { computeRisk } from "./yardOps.js";
 import { isHazmatVisit, normalizeVisitType } from "./visitProfiles.js";
+import { localDocOk, verifyHazmat } from "./hazmatVerify.js";
 
 const REQUIRED_DRIVER_DOCS = ["driver_license", "qualification"];
 const REQUIRED_VEHICLE_DOCS = ["vehicle_license", "insurance"];
@@ -90,6 +91,7 @@ export function evaluateAccess({
   carrierId,
   visitType = "carrier_inbound",
   selectedOptions = [],
+  pickupRef = "",
 }) {
   const type = normalizeVisitType(visitType);
 
@@ -191,11 +193,44 @@ export function evaluateAccess({
   pushDocReasons(reasons, "车辆", vehicleDocs);
   pushDocReasons(reasons, "承运商", carrierDocs);
 
+  let hazmatVerify = null;
   if (isHazmatVisit(selectedOptions)) {
-    const hazDriver = validDocs("driver", driverId, ["hazmat_permit"]);
-    const hazVehicle = validDocs("vehicle", vehicleId, ["manifest"]);
-    pushDocReasons(reasons, "危化", hazDriver);
-    pushDocReasons(reasons, "运单", hazVehicle);
+    const allDocs = db
+      .prepare(`SELECT * FROM documents WHERE status = 'valid'`)
+      .all();
+    const day = today();
+    const driverRow = db.prepare(`SELECT * FROM drivers WHERE id = ?`).get(driverId);
+    const settings = Object.fromEntries(
+      db.prepare(`SELECT key, value FROM settings`).all().map((r) => [r.key, r.value])
+    );
+    hazmatVerify = verifyHazmat({
+      plateNo: vehicle?.plate_no || "",
+      plateColor: vehicle?.plate_color || "2",
+      driverName: driverRow?.name || "",
+      transportPermitOk: localDocOk(
+        allDocs.filter((d) => d.subject_type === "carrier" && d.subject_id === carrierId),
+        "transport_permit",
+        day
+      ),
+      hazmatQualOk: localDocOk(
+        allDocs.filter((d) => d.subject_type === "driver" && d.subject_id === driverId),
+        "hazmat_permit",
+        day
+      ),
+      manifestOk: localDocOk(
+        allDocs.filter((d) => d.subject_type === "vehicle" && d.subject_id === vehicleId),
+        "manifest",
+        day
+      ),
+      carrierLicenseOk: settings.hazmat_carrier_license_ok !== "false",
+      networkDirectoryOk: vehicle?.network_directory_ok === 1 || vehicle?.network_directory_ok === true,
+      networkDirectorySource: settings.hazmat_directory_mode || "manual_cached",
+      permitMismatch: vehicle?.permit_mismatch === 1 || vehicle?.permit_mismatch === true,
+      identityMatch: true,
+      pickupRef: pickupRef || "",
+      provider: settings.hazmat_verify_provider || "mock-hazmat-verify",
+    });
+    for (const r of hazmatVerify.reasons) reasons.push(r);
   }
 
   const docsOk =
@@ -207,6 +242,7 @@ export function evaluateAccess({
     carrierDocs.expired.length === 0 &&
     !reasons.some((r) => r.code === "DOC_MISSING" || r.code === "DOC_EXPIRED");
 
+  const hazmatOk = !hazmatVerify || hazmatVerify.ok;
   const allowed = reasons.length === 0;
   const risk = computeRisk({
     allowed,
@@ -226,7 +262,9 @@ export function evaluateAccess({
       subject: !reasons.some((r) =>
         ["CARRIER_BLOCKED", "DRIVER_BLOCKED", "VEHICLE_BLOCKED"].includes(r.code)
       ),
+      ...(hazmatVerify ? { hazmat: hazmatOk } : {}),
     },
+    hazmatVerify,
     training,
     course,
     mode: type,

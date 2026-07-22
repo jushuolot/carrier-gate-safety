@@ -18,6 +18,14 @@ const LEGACY_REASON = {
   CARRIER_BLOCKED: "rc_carrier_blocked",
   DRIVER_BLOCKED: "rc_driver_blocked",
   VEHICLE_BLOCKED: "rc_vehicle_blocked",
+  HAZMAT_NO_PLATE: "rc_hazmat_no_plate",
+  HAZMAT_PERMIT_MISMATCH: "rc_hazmat_permit_mismatch",
+  HAZMAT_PERMIT_EXPIRED: "rc_hazmat_permit_expired",
+  HAZMAT_QUAL_EXPIRED: "rc_hazmat_qual_expired",
+  HAZMAT_QUAL_PERSON_MISMATCH: "rc_hazmat_qual_person",
+  HAZMAT_CARRIER_LICENSE: "rc_hazmat_carrier_license",
+  HAZMAT_DIR_NOT_LISTED: "rc_hazmat_dir",
+  HAZMAT_WAYBILL_MISSING: "rc_hazmat_waybill",
 };
 
 export function localeOf(lang) {

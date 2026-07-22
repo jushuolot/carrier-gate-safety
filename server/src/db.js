@@ -180,4 +180,15 @@ export function migrate() {
   addCol("risk_score", "risk_score INTEGER");
   addCol("risk_level", "risk_level TEXT");
   addCol("archive_key", "archive_key TEXT");
+
+  const vehicleCols = db.prepare(`PRAGMA table_info(vehicles)`).all().map((c) => c.name);
+  const addVehCol = (name, ddl) => {
+    if (!vehicleCols.includes(name)) {
+      db.exec(`ALTER TABLE vehicles ADD COLUMN ${ddl}`);
+    }
+  };
+  addVehCol("plate_color", "plate_color TEXT DEFAULT '2'");
+  addVehCol("network_directory_ok", "network_directory_ok INTEGER NOT NULL DEFAULT 0");
+  addVehCol("network_directory_at", "network_directory_at TEXT");
+  addVehCol("permit_mismatch", "permit_mismatch INTEGER NOT NULL DEFAULT 0");
 }

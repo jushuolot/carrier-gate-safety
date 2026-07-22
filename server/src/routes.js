@@ -540,11 +540,27 @@ export function createApiRouter({ deviceHub }) {
 
   // ---- access evaluate ----
   router.post("/access/evaluate", auth, (req, res) => {
-    const { siteId = "site-1", driverId, vehicleId, carrierId } = req.body || {};
+    const {
+      siteId = "site-1",
+      driverId,
+      vehicleId,
+      carrierId,
+      visitType,
+      selectedOptions,
+    } = req.body || {};
     if (!driverId || !vehicleId || !carrierId) {
       return res.status(400).json({ error: "缺少 driverId/vehicleId/carrierId" });
     }
-    res.json(evaluateAccess({ siteId, driverId, vehicleId, carrierId }));
+    res.json(
+      evaluateAccess({
+        siteId,
+        driverId,
+        vehicleId,
+        carrierId,
+        visitType,
+        selectedOptions,
+      })
+    );
   });
 
   // ---- visits state machine ----
@@ -633,6 +649,7 @@ export function createApiRouter({ deviceHub }) {
       carrierId: v.carrier_id,
       visitType: v.visit_type || "carrier",
       selectedOptions,
+      pickupRef: v.pickup_ref || "",
     });
     res.json({
       visit: enrichVisit(v),

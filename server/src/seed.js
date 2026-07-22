@@ -62,14 +62,17 @@ const veh1 = "veh-1";
 const veh2 = "veh-2";
 const vehPickup = "veh-pickup";
 db.prepare(
-  `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-).run(veh1, carrierId, "沪A12345", "重型厢式货车", "active", now);
+  `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at, plate_color, network_directory_ok, network_directory_at, permit_mismatch)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+).run(veh1, carrierId, "沪A12345", "重型厢式货车", "active", now, "2", 1, now, 0);
 db.prepare(
-  `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-).run(veh2, carrierId, "沪B67890", "重型厢式货车", "active", now);
+  `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at, plate_color, network_directory_ok, network_directory_at, permit_mismatch)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+).run(veh2, carrierId, "沪B67890", "重型厢式货车", "active", now, "2", 0, null, 0);
 db.prepare(
-  `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-).run(vehPickup, carrierSelf, "沪C88888", "小型客车/自提", "active", now);
+  `INSERT INTO vehicles (id, carrier_id, plate_no, vehicle_type, status, created_at, plate_color, network_directory_ok, network_directory_at, permit_mismatch)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+).run(vehPickup, carrierSelf, "沪C88888", "小型客车/自提", "active", now, "1", 0, null, 0);
 
 const users = [
   ["u-admin", "13800000000", "系统管理员", "admin123", "admin", null, null],
@@ -169,6 +172,8 @@ for (const doc of ["vehicle_license", "insurance"]) {
   insertDoc("vehicle", veh2, doc, 180);
 }
 insertDoc("carrier", carrierId, "transport_permit", 400);
+insertDoc("driver", driverOk, "hazmat_permit", 180);
+insertDoc("vehicle", veh1, "manifest", 30);
 
 // 即将过期样例（演示预警）
 insertDoc("driver", driverNew, "driver_license", 5);
@@ -186,6 +191,18 @@ db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run("dwell_warn_mi
 db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
   "warehouse_notify_email",
   "warehouse-leads@example.com"
+);
+db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
+  "hazmat_verify_provider",
+  "mock-hazmat-verify"
+);
+db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
+  "hazmat_directory_mode",
+  "manual_cached"
+);
+db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)`).run(
+  "hazmat_carrier_license_ok",
+  "true"
 );
 
 insertDoc("driver", driverOk, "id_card", 2000);
@@ -247,9 +264,67 @@ db.prepare(
   now
 );
 
+const slotC = `${day}T11:00:00`;
+const slotCEnd = `${day}T11:30:00`;
+const slotD = `${day}T13:00:00`;
+const slotDEnd = `${day}T13:30:00`;
+
+db.prepare(
+  `INSERT INTO visits
+   (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
+    checkin_at, admitted_at, visit_type, selected_options, pickup_ref, slot_start, slot_end,
+    pass_code, risk_score, risk_level, created_at, updated_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'inspecting', NULL, ?, ?, 'carrier_inbound', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+).run(
+  "visit-demo-hazmat",
+  siteId,
+  carrierId,
+  driverOk,
+  veh1,
+  slotC,
+  now,
+  now,
+  JSON.stringify(["hazmat"]),
+  "DN-HAZ-20260722",
+  slotC,
+  slotCEnd,
+  "HAZ001",
+  35,
+  "medium",
+  now,
+  now
+);
+
+db.prepare(
+  `INSERT INTO visits
+   (id, site_id, carrier_id, driver_id, vehicle_id, appointment_at, status, block_reasons,
+    checkin_at, visit_type, selected_options, pickup_ref, slot_start, slot_end,
+    pass_code, risk_score, risk_level, created_at, updated_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'access_pending', ?, ?, 'carrier_inbound', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+).run(
+  "visit-demo-hazmat-block",
+  siteId,
+  carrierId,
+  driverOk,
+  veh2,
+  slotD,
+  JSON.stringify([{ code: "HAZMAT_DIR_NOT_LISTED", message: "未通过上海联网联控目录/准入核验" }]),
+  now,
+  JSON.stringify(["hazmat"]),
+  "DN-HAZ-BLOCK",
+  slotD,
+  slotDEnd,
+  "HAZBAD",
+  82,
+  "high",
+  now,
+  now
+);
+
 console.log("Seed OK");
 console.log("Site:", siteId);
 console.log("Drivers: 13900000001 (首次) / 13900000002 (已准入)");
+console.log("Hazmat demo pass codes: HAZ001 (ok) / HAZBAD (directory block)");
 console.log("Self-pickup: 13700000001 / pickup123");
 console.log("Gate: 13800000002 / gate123");
 console.log("Demo visits: inspecting(GATE01) + access_pending(WAIT88)");

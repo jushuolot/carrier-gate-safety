@@ -340,6 +340,28 @@ export default function GateConsole() {
                   <span className={`pill ${access.lights.documents ? "ok" : "bad"}`}>
                     {t("docsLight")} {access.lights.documents ? t("docsComplete") : t("docsMissing")}
                   </span>
+                  {Object.prototype.hasOwnProperty.call(access.lights, "hazmat") && (
+                    <span className={`pill ${access.lights.hazmat ? "ok" : "bad"}`}>
+                      {t("lightHazmat")} {access.lights.hazmat ? t("okHazmat") : t("badHazmat")}
+                    </span>
+                  )}
+                </div>
+              )}
+              {access?.hazmatVerify && (
+                <div className="hazmat-verify-box">
+                  <strong>{t("hazmatVerifyTitle")}</strong>
+                  <p className="muted">
+                    {t("hazmatProvider")}: {access.hazmatVerify.provider}
+                    {" · "}
+                    {t("hazmatRequestId", { id: access.hazmatVerify.requestId })}
+                  </p>
+                  <ul className="gate-reasons">
+                    {Object.entries(access.hazmatVerify.lights || {}).map(([k, v]) => (
+                      <li key={k}>
+                        {k}: <span className={`pill ${v === "fail" ? "bad" : "ok"}`}>{v}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {access?.riskFactors?.length > 0 && (

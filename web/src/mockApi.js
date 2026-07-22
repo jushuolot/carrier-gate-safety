@@ -3,7 +3,9 @@
  * 数据落在 localStorage，刷新可续。
  */
 
-const STORE_KEY = "cgs-pages-demo-v7";
+import { localDocOk, verifyHazmat } from "../../server/src/services/hazmatVerify.js";
+
+const STORE_KEY = "cgs-pages-demo-v8";
 const LEGACY_STORE_KEYS = [
   "cgs-pages-demo-v1",
   "cgs-pages-demo-v2",
@@ -11,6 +13,7 @@ const LEGACY_STORE_KEYS = [
   "cgs-pages-demo-v4",
   "cgs-pages-demo-v5",
   "cgs-pages-demo-v6",
+  "cgs-pages-demo-v7",
 ];
 
 const CAP = {
@@ -172,9 +175,39 @@ function seed() {
       { id: "driver-pickup", carrier_id: "carrier-self", name: "自提客户（通用）", phone: "13700000001", status: "active" },
     ],
     vehicles: [
-      { id: "veh-1", carrier_id: "carrier-1", plate_no: "沪A12345", vehicle_type: "重型厢式货车", status: "active" },
-      { id: "veh-2", carrier_id: "carrier-1", plate_no: "沪B67890", vehicle_type: "重型厢式货车", status: "active" },
-      { id: "veh-pickup", carrier_id: "carrier-self", plate_no: "沪C88888", vehicle_type: "小型客车/自提", status: "active" },
+      {
+        id: "veh-1",
+        carrier_id: "carrier-1",
+        plate_no: "沪A12345",
+        plate_color: "2",
+        vehicle_type: "重型厢式货车",
+        status: "active",
+        network_directory_ok: true,
+        network_directory_at: now(),
+        permit_mismatch: false,
+      },
+      {
+        id: "veh-2",
+        carrier_id: "carrier-1",
+        plate_no: "沪B67890",
+        plate_color: "2",
+        vehicle_type: "重型厢式货车",
+        status: "active",
+        network_directory_ok: false,
+        network_directory_at: null,
+        permit_mismatch: false,
+      },
+      {
+        id: "veh-pickup",
+        carrier_id: "carrier-self",
+        plate_no: "沪C88888",
+        plate_color: "1",
+        vehicle_type: "小型客车/自提",
+        status: "active",
+        network_directory_ok: false,
+        network_directory_at: null,
+        permit_mismatch: false,
+      },
     ],
     sites: [{ id: "site-1", name: "华东一号仓", address: "上海市浦东新区示例路 88 号" }],
     course: {
@@ -216,6 +249,8 @@ function seed() {
       doc("vehicle", "veh-2", "vehicle_license", 180),
       doc("vehicle", "veh-2", "insurance", 180),
       doc("carrier", "carrier-1", "transport_permit", 400),
+      doc("driver", "driver-ok", "hazmat_permit", 180),
+      doc("vehicle", "veh-1", "manifest", 30),
       doc("driver", "driver-new", "driver_license", 5),
     ],
     visits: [
@@ -240,6 +275,55 @@ function seed() {
         pass_code: "GATE01",
         risk_score: 22,
         risk_level: "low",
+        created_at: now(),
+        updated_at: now(),
+      },
+      {
+        id: "visit-demo-hazmat",
+        site_id: "site-1",
+        carrier_id: "carrier-1",
+        driver_id: "driver-ok",
+        vehicle_id: "veh-1",
+        appointment_at: `${addDays(0)}T11:00:00`,
+        checkin_at: now(),
+        admitted_at: now(),
+        status: "inspecting",
+        block_reasons: null,
+        visit_type: "carrier_inbound",
+        selected_options: ["hazmat"],
+        customer_name: null,
+        customer_phone: null,
+        pickup_ref: "DN-HAZ-20260722",
+        slot_start: `${addDays(0)}T11:00:00`,
+        slot_end: `${addDays(0)}T11:30:00`,
+        pass_code: "HAZ001",
+        risk_score: 35,
+        risk_level: "medium",
+        created_at: now(),
+        updated_at: now(),
+      },
+      {
+        id: "visit-demo-hazmat-block",
+        site_id: "site-1",
+        carrier_id: "carrier-1",
+        driver_id: "driver-ok",
+        vehicle_id: "veh-2",
+        appointment_at: `${addDays(0)}T13:00:00`,
+        checkin_at: now(),
+        status: "access_pending",
+        block_reasons: [
+          { code: "HAZMAT_DIR_NOT_LISTED", message: "HAZMAT_DIR_NOT_LISTED" },
+        ],
+        visit_type: "carrier_inbound",
+        selected_options: ["hazmat"],
+        customer_name: null,
+        customer_phone: null,
+        pickup_ref: "DN-HAZ-BLOCK",
+        slot_start: `${addDays(0)}T13:00:00`,
+        slot_end: `${addDays(0)}T13:30:00`,
+        pass_code: "HAZBAD",
+        risk_score: 82,
+        risk_level: "high",
         created_at: now(),
         updated_at: now(),
       },
@@ -274,6 +358,9 @@ function seed() {
       exception_dual_approve: "true",
       slot_capacity: 4,
       dwell_warn_minutes: 90,
+      hazmat_verify_provider: "mock-hazmat-verify",
+      hazmat_directory_mode: "manual_cached",
+      hazmat_carrier_license_ok: "true",
     },
     audit: [],
     deviceEvents: [],
@@ -591,7 +678,10 @@ function enrichVisit(s, v) {
   };
 }
 
-function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier_inbound", selectedOptions = [] }) {
+function evaluate(
+  s,
+  { driverId, vehicleId, carrierId, visitType = "carrier_inbound", selectedOptions = [], pickupRef = "" }
+) {
   const type = normalizeVisitType(visitType);
   if (type === "self_pickup") {
     const base = {
@@ -687,12 +777,31 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier_inbo
   check("driver", driverId, need.driver);
   check("vehicle", vehicleId, need.vehicle);
   check("carrier", carrierId, need.carrier);
+  let hazmatVerify = null;
   if ((selectedOptions || []).includes("hazmat")) {
-    check("driver", driverId, ["hazmat_permit"]);
-    check("vehicle", vehicleId, ["manifest"]);
+    const day = today;
+    const docsOf = (stype, id) =>
+      s.documents.filter((x) => x.subject_type === stype && x.subject_id === id);
+    hazmatVerify = verifyHazmat({
+      plateNo: vehicle?.plate_no || "",
+      plateColor: vehicle?.plate_color || "2",
+      driverName: driver?.name || "",
+      transportPermitOk: localDocOk(docsOf("carrier", carrierId), "transport_permit", day),
+      hazmatQualOk: localDocOk(docsOf("driver", driverId), "hazmat_permit", day),
+      manifestOk: localDocOk(docsOf("vehicle", vehicleId), "manifest", day),
+      carrierLicenseOk: s.settings?.hazmat_carrier_license_ok !== "false",
+      networkDirectoryOk: !!vehicle?.network_directory_ok,
+      networkDirectorySource: s.settings?.hazmat_directory_mode || "manual_cached",
+      permitMismatch: !!vehicle?.permit_mismatch,
+      identityMatch: true,
+      pickupRef: pickupRef || "",
+      provider: s.settings?.hazmat_verify_provider || "mock-hazmat-verify",
+    });
+    for (const r of hazmatVerify.reasons) reasons.push(r);
   }
 
   const docsOk = !reasons.some((r) => r.code === "DOC_MISSING" || r.code === "DOC_EXPIRED");
+  const hazmatOk = !hazmatVerify || hazmatVerify.ok;
   const allowed = reasons.length === 0;
   const risk = computeRisk(s, {
     allowed,
@@ -709,7 +818,9 @@ function evaluate(s, { driverId, vehicleId, carrierId, visitType = "carrier_inbo
       training: trainingOk,
       documents: docsOk,
       subject: !reasons.some((r) => ["CARRIER_BLOCKED", "DRIVER_BLOCKED", "VEHICLE_BLOCKED"].includes(r.code)),
+      ...(hazmatVerify ? { hazmat: hazmatOk } : {}),
     },
+    hazmatVerify,
     training: training || null,
     course: s.course,
     mode: type,
@@ -1177,6 +1288,7 @@ export async function mockApi(path, options = {}) {
           carrierId: visit.carrier_id,
           visitType: vt,
           selectedOptions,
+          pickupRef: visit.pickup_ref || "",
         }),
         departSteps: resolveDepartSteps(vt, selectedOptions),
         inspectChecklist: getVisitProfile(vt).inspectChecklist,
@@ -1191,6 +1303,7 @@ export async function mockApi(path, options = {}) {
         carrierId: visit.carrier_id,
         visitType: visit.visit_type || "carrier",
         selectedOptions,
+        pickupRef: visit.pickup_ref || "",
       });
       visit.checkin_at = now();
       visit.updated_at = now();

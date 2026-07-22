@@ -105,6 +105,15 @@ export default function DriverHome() {
       badText: t("badAbnormal"),
     },
   ];
+  if (access?.lights && Object.prototype.hasOwnProperty.call(access.lights, "hazmat")) {
+    lights.push({
+      key: "hazmat",
+      label: t("lightHazmat"),
+      ok: !!access.lights.hazmat,
+      okText: t("okHazmat"),
+      badText: t("badHazmat"),
+    });
+  }
 
   const riskText = (access?.riskFactors || [])
     .map((f) => riskFactorLabel(t, f))

@@ -1297,6 +1297,24 @@ h2 {
   margin: 0 0 6px;
 }
 
+.hazmat-verify-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--purple-soft, #f3e8fa);
+  border: 1px solid rgba(59, 10, 92, 0.12);
+}
+
+.hazmat-verify-box strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--purple, #3b0a5c);
+}
+
+.hazmat-verify-box .gate-reasons {
+  margin-top: 8px;
+}
+
 .gate-lights {
   display: flex;
   flex-wrap: wrap;
